@@ -1200,10 +1200,28 @@
           focusCell(focusedCell);
           return;
         }
-        const prefix = [...game.path];
-        const continuation = findContinuation(puzzle, prefix);
+        // С неверного хвоста продолжения нет — шагаем назад, пока не найдётся.
+        let prefix = [...game.path];
+        let continuation = findContinuation(puzzle, prefix);
+        while (!continuation && prefix.length > 1) {
+          prefix.pop();
+          continuation = findContinuation(puzzle, prefix);
+        }
         if (!continuation) {
-          showToast('Не вижу продолжения отсюда. Отмените пару шагов и попробуйте снова.');
+          // Запасной выход: вернуть линию к старту и дать запечённую подсказку.
+          prefix = [puzzle.start];
+          if (!Number.isInteger(puzzle.hint)) {
+            showToast('Не вижу продолжения отсюда. Отмените пару шагов и попробуйте снова.');
+            return;
+          }
+          game.path = [...prefix];
+          game.hints = Math.min(9999, game.hints + 1);
+          game.hint = puzzle.hint;
+          focusedCell = prefix.at(-1);
+          render();
+          persist();
+          syncClock();
+          focusCell(focusedCell);
           return;
         }
         game.path = [...prefix];

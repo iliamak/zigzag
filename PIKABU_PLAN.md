@@ -96,6 +96,9 @@ SDK + сейвы → Supabase + деплой Bothost → Студия (икон�
   `build-levels.mjs` → `levels.build.json` (без `_solution`, + поле `hint`).
 - Локальный тест: `node serve.cjs 8000` → http://localhost:8000/zigzag.html
   (через file:// не работает — нужен сервер из-за fetch).
+- GitHub: https://github.com/iliamak/zigzag (автопуш → автодеплой подключён).
+- Прод: https://zigzag-kappa.vercel.app/ (корень — зигзаг; ежедневка «шаг»
+  в архиве на /shag.html; /zigzag.html редиректит на корень).
 - `index.html` (ежедневка «шаг») не тронут.
 Следующее: бэкенд Bothost + Supabase (п.6–7), иконки/тексты для Студии,
 тестовая ссылка, модерация. Открытые вопросы: мелкие клетки 7×7 на телефоне;
