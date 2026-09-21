@@ -1586,8 +1586,8 @@
         check(Array.isArray(LEVELS) && LEVELS.length === 100, 'Levels pack has 100 levels');
         check(new Set(LEVELS.map((l) => l.id)).size === 100, 'Level ids are unique');
         const bySize = (size) => LEVELS.filter((l) => l.size === size).length;
-        check(bySize(4) === 10 && bySize(5) === 25 && bySize(6) === 35 && bySize(7) === 30, 'Size ladder is 10/25/35/30');
-        const WP = { 4: [4, 4], 5: [5, 6], 6: [7, 8], 7: [8, 9] };
+        check(bySize(4) === 10 && bySize(5) === 30 && bySize(6) === 30 && bySize(7) === 30, 'Size ladder is 10/30/30/30');
+        const WP = { 4: [4, 4], 5: [5, 8], 6: [6, 10], 7: [7, 12] };
         for (const def of LEVELS) {
           const nums = Object.entries(def.numbers);
           const [lo, hi] = WP[def.size] || [4, 9];

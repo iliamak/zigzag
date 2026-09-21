@@ -1,0 +1,7 @@
+=== Phase 1: how many WALLS does each duplicate solution cost? (targeted wall = edge of the duplicate not used by the kept solution) ===
+size	K	N	unique_at_0	walls_to_unique(med)	walls_to_unique(p90)	walls_max	decoy/cell_after	solutions_left(med)	nodes_med
+5	8	40	0	3	3	4	0.542	1	569
+6	8	40	0	5	7	8	0.629	1	3993.5
+6	10	30	0	5	6	8	0.629	1	3144.5
+7	10	20	0	8	8	8	0.688	1.5	20114.5
+7	12	20	0	8	8	8	0.688	1	15763.5

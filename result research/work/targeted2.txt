@@ -1,0 +1,13 @@
+=== FINAL: optimal flags + TARGETED walls (kill duplicates only) vs shipped levels ===
+size	K	N	unique%	walls_med	walls_max	decoy/cell_med(AFTER walls)	decoy/cell_p90	decisions_med	straightDecoys_med	straightRun_med	nodes_med
+5	8	40	100	2	5	0.5	0.583	8	3	3	517
+6	8	40	100	5	10	0.571	0.629	14	6	4	4086.5
+6	10	30	100	4	9	0.571	0.629	14	6	4	3502.5
+7	10	25	64	9	10	0.625	0.667	21	9	5	28774
+7	12	25	76	9	10	0.625	0.688	21	9	5	22572
+
+=== shipped reference (levels.json) ===
+size	decoy/cell_med	decoy/cell_p90	decisions_med	straightDecoys_med	straightRun_med	walls_med	nodes_med
+5x5	0.417	0.458	8	3	3	3	442
+6x6	0.457	0.486	14	5	4	3	2573
+7x7	0.521	0.563	20	7	5	5	33565
