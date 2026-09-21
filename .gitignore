@@ -1,2 +1,4 @@
 .zz-check.js
 node_modules/
+
+.vercel

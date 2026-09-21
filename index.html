@@ -4,20 +4,13 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#f7f7f2">
-  <meta name="description" content="Шаг: одна линия, все клетки и маленькая победа каждый день. Ежедневная головоломка для VK Mini Apps.">
-  <title>шаг - ваша ежедневная пауза</title>
+  <meta name="description" content="Зигзаг: 100 головоломок с линией — от 4 на 4 до 7 на 7. Соединяйте числа и заполняйте всё поле.">
+  <title>зигзаг — 100 головоломок с линией</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='17' fill='%23f5753c'/%3E%3Cpath d='M17 19v27h15V19h15v27' fill='none' stroke='white' stroke-width='7' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
-  <script src="https://unpkg.com/@vkontakte/vk-bridge/dist/browser.min.js"></script>
-  <script>
-    // VK Bridge is initialized before the game script, as required by VK Mini Apps.
-    window.vkMini = { bridge: window.vkBridge || null, active: false, user: null, initialized: false };
-    window.vkMini.initPromise = window.vkMini.bridge
-      ? window.vkMini.bridge.send('VKWebAppInit', {}).then(() => { window.vkMini.active = true; window.vkMini.initialized = true; return true; }).catch(() => false)
-      : Promise.resolve(false);
-  </script>
+  <script async src="https://games.pikabu.ru/sdk/sdk.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
   <style>
     :root {
@@ -83,7 +76,16 @@
     .board { width: 100%; aspect-ratio: 1; position: relative; overflow: hidden; background: white; border: 2px solid #363831; border-radius: 12px; touch-action: none; user-select: none; -webkit-user-select: none; }
     .board-art, .board-cells { position: absolute; inset: 0; width: 100%; height: 100%; }
     .board-art { pointer-events: none; }
-    .board-cells { display: grid; grid-template-columns: repeat(6, 1fr); grid-template-rows: repeat(6, 1fr); }
+    .board-cells { display: grid; }
+    .board[data-size="4"] .number { width: 40px; height: 40px; font-size: 18px; }
+    .board[data-size="5"] .number { width: 36px; height: 36px; font-size: 16px; }
+    .board[data-size="7"] .number { width: 28px; height: 28px; font-size: 12px; }
+    .board[data-size="7"] #drawnPath { stroke-width: 34; }
+    .level-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin: 20px 0; }
+    .level-cell { min-height: 44px; border: 1px solid var(--line); border-radius: 8px; background: #fff; font-size: 13px; font-variant-numeric: tabular-nums; display: grid; place-items: center; transition: background .2s, border-color .2s; }
+    .level-cell:hover:not(:disabled) { border-color: var(--orange); background: var(--orange-soft); }
+    .level-cell.done { background: #edf0e5; border-color: #c4c9b6; color: var(--green); font-weight: 600; }
+    .level-cell.current { border: 2px solid var(--orange); font-weight: 700; }
     .board-cell { position: relative; display: grid; place-items: center; padding: 0; border-radius: 0; touch-action: none; }
     .board-cell:hover { background: rgba(245,117,60,.035); }
     .board-cell:focus-visible { outline: 2px dashed var(--orange); outline-offset: -5px; border-radius: 7px; background: rgba(245,117,60,.04); }
@@ -445,16 +447,15 @@
 
   <header class="site-header">
     <div class="brand-group flex items-center">
-      <a class="brand" href="#" id="homeLink" aria-label="Шаг, главная">
+      <a class="brand" href="#" id="homeLink" aria-label="Зигзаг, главная">
         <svg class="brand-mark" viewBox="0 0 40 40" aria-hidden="true"><rect width="40" height="40" rx="11" fill="#f5753c"/><path d="M10 12v17h10V12h10v17" fill="none" stroke="#fff" stroke-width="4.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        <span class="brand-word">шаг</span>
+        <span class="brand-word">зигзаг</span>
       </a>
-      <span class="brand-note">Игры для ясной головы</span>
+      <span class="brand-note">100 головоломок с линией</span>
     </div>
     <nav class="header-nav" aria-label="Основная навигация">
+      <button type="button" class="nav-button" id="navLevels">Уровни</button>
       <button type="button" class="nav-button" id="navRules">Как играть</button>
-      <button type="button" class="nav-button" id="navFriends"><svg class="icon" aria-hidden="true"><use href="#i-users"/></svg><span>Друзья</span></button>
-      <button type="button" class="nav-reminder" id="navReminder" aria-label="Настроить напоминание" title="Настроить напоминание"><svg class="icon" aria-hidden="true"><use href="#i-bell"/></svg></button>
     </nav>
   </header>
 
@@ -463,11 +464,11 @@
       <section class="game-column" aria-labelledby="gameTitle">
         <div class="game-inner">
           <div class="game-heading">
-            <h1 id="gameTitle">шаг<span class="brand-period">.</span></h1>
-            <p>Одна линия. Маленькая победа каждый день.</p>
+            <h1 id="gameTitle">зигзаг<span class="brand-period">.</span></h1>
+            <p>Одна линия. Сто головоломок — от 4 на 4 до 7 на 7.</p>
           </div>
           <div class="board-meta">
-            <div class="daily-label"><span class="daily-dot" aria-hidden="true"></span><strong id="puzzleNumber">Задача дня</strong><span class="meta-separator" aria-hidden="true"></span><span id="puzzleDate"></span></div>
+            <div class="daily-label"><span class="daily-dot" aria-hidden="true"></span><strong id="puzzleNumber">Уровень 1</strong><span class="meta-separator" aria-hidden="true"></span><span id="puzzleDate"></span></div>
             <div class="timer-tools">
               <div class="timer" aria-label="Время игры"><svg class="icon" aria-hidden="true"><use href="#i-clock"/></svg><span id="timerText">00:00</span></div>
               <button type="button" class="icon-button" id="pauseButton" aria-label="Пауза" title="Пауза (P)" disabled><svg class="icon" aria-hidden="true"><use id="pauseIcon" href="#i-pause"/></svg></button>
@@ -478,12 +479,12 @@
             <div class="board" id="board" role="group" aria-label="Игровое поле 6 на 6" aria-describedby="keyboardHelp">
               <svg class="board-art" viewBox="0 0 600 600" preserveAspectRatio="none" aria-hidden="true">
                 <defs><linearGradient id="pathGradient" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="600" y2="600"><stop offset="0" stop-color="#ffb16c"/><stop offset="1" stop-color="#f5753c"/></linearGradient></defs>
-                <path d="M100 0V600M200 0V600M300 0V600M400 0V600M500 0V600M0 100H600M0 200H600M0 300H600M0 400H600M0 500H600" stroke="#e2e4da" stroke-width="1.8" fill="none"/>
+                <g id="boardGrid" stroke="#e2e4da" stroke-width="1.8" fill="none"></g>
                 <path id="drawnPath" d="" fill="none" stroke="url(#pathGradient)" stroke-width="43" stroke-linecap="round" stroke-linejoin="round"/>
                 <circle id="pathTip" cx="0" cy="0" r="7" fill="#fff6e9" opacity="0"/>
                 <g id="boardWalls" fill="none" stroke="#363831" stroke-width="6.5" stroke-linecap="round"></g>
               </svg>
-              <div class="board-cells" id="boardCells" role="grid" aria-label="Соедините числа от 1 до 8" aria-rowcount="6" aria-colcount="6"></div>
+              <div class="board-cells" id="boardCells" role="grid" aria-label="Соедините числа по порядку"></div>
             </div>
             <div class="pause-overlay" id="pauseOverlay" hidden>
               <div class="pause-symbol"><svg class="icon" aria-hidden="true"><use href="#i-pause"/></svg></div>
@@ -503,15 +504,15 @@
             <button type="button" class="control-button hint-button" id="hintButton"><svg class="icon" aria-hidden="true"><use href="#i-bulb"/></svg>Подсказка</button>
           </div>
           <div class="result-controls" id="resultControls" hidden>
-            <button type="button" class="button button-primary" id="resultButton"><svg class="icon" aria-hidden="true"><use href="#i-trophy"/></svg>Мой результат</button>
-            <button type="button" class="button button-secondary" id="shareButton"><svg class="icon" aria-hidden="true"><use href="#i-share"/></svg>Поделиться</button>
+            <button type="button" class="button button-primary" id="nextButton"><svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg>Дальше</button>
+            <button type="button" class="button button-secondary" id="gotoLevels"><svg class="icon" aria-hidden="true"><use href="#i-trophy"/></svg>Уровни</button>
           </div>
-          <p class="storage-warning" id="storageWarning" role="status" hidden>Браузер не разрешает сохранять данные. Не закрывайте вкладку: прогресс и ограничение одной игры в день будут работать только до её закрытия.</p>
-          <p class="vk-note" id="vkNote" hidden><strong>VK Mini Apps</strong> подключён: профиль, нативный шаринг и тактильный отклик работают через VK Bridge.</p>
+          <p class="storage-warning" id="storageWarning" role="status" hidden>Браузер не разрешает сохранять данные. Прогресс будет работать только до закрытия вкладки.</p>
+          <p class="vk-note" id="vkNote" hidden></p>
         </div>
       </section>
 
-      <aside class="side-column" aria-label="Правила и ваша серия">
+      <aside class="side-column" aria-label="Правила и ваш прогресс">
         <section class="how-to" id="howTo">
           <h2 class="how-heading"><button type="button" class="how-toggle" id="howToggle" aria-expanded="true" aria-controls="howContent">Как играть<svg class="icon" aria-hidden="true"><use href="#i-chevron"/></svg></button></h2>
           <div class="how-content" id="howContent">
@@ -543,14 +544,14 @@
           <div class="streak-top">
             <div class="streak-title">
               <svg viewBox="0 0 28 32" fill="none" aria-hidden="true"><path d="M15.2 2c1.1 6.5-5.7 7.4-4.6 13.6-2.9-1.2-3.3-3.9-3.3-3.9S2.6 16.2 4.2 23c1.1 4.7 5 7.2 9.8 7.2 6.2 0 10.3-4.7 10.1-10.2-.2-5.8-4.6-9.2-4.6-9.2s.6 4.5-2.3 5.3C20.4 7 15.2 2 15.2 2Z" fill="#fde4cc" stroke="#e78b46" stroke-width="1.4" stroke-linejoin="round"/><path d="M14.3 19s-4.7 4.2-3.2 7.7c.9 2.2 4.7 2.6 6.2.1 1.9-3.2-3-7.8-3-7.8Z" fill="#ee9b57"/></svg>
-              <h2 id="streakTitle">День за днём</h2>
+              <h2 id="streakTitle">Ваш путь</h2>
             </div>
-            <span class="streak-value" id="streakValue">0 дней</span>
+            <span class="streak-value" id="streakValue">0 из 100</span>
           </div>
-          <p class="streak-description" id="streakDescription">Начните с одной маленькой победы.</p>
-          <div class="week" id="weekProgress" aria-label="Ваша серия за неделю"></div>
-          <button type="button" class="reminder-button" id="reminderButton"><svg class="icon" aria-hidden="true"><use href="#i-bell"/></svg><span id="reminderLabel">Напомнить о новой игре</span></button>
-          <p class="reminder-caption">Ваш ритм. Ваше время. Без спама.</p>
+          <p class="streak-description" id="streakDescription">Сто уровней — от быстрых до залипательных.</p>
+          <div class="week" id="weekProgress" aria-label="Ваш прогресс" hidden></div>
+          <button type="button" class="reminder-button" id="levelsButton"><svg class="icon" aria-hidden="true"><use href="#i-trophy"/></svg><span>Выбрать уровень</span></button>
+          <p class="reminder-caption">Прогресс хранится в браузере и в облаке.</p>
         </section>
       </aside>
     </div>
@@ -558,7 +559,7 @@
 
   <footer class="site-footer">
     <div class="footer-thought"><svg class="icon" aria-hidden="true"><use href="#i-spark"/></svg><span>Немного фокуса. И день уже лучше.</span></div>
-    <div class="footer-right"><span>Новая игра каждый день в 00:00</span><button type="button" class="about-button" id="aboutButton">О проекте</button></div>
+    <div class="footer-right"><span>100 уровней: от 4 на 4 до 7 на 7</span><button type="button" class="about-button" id="aboutButton">О проекте</button></div>
   </footer>
 
   <dialog class="dialog" id="appDialog" aria-labelledby="modalTitle">
@@ -573,62 +574,139 @@
     'use strict';
     (() => {
       const $ = (id) => document.getElementById(id);
-      const SIZE = 6;
-      const CELL_COUNT = SIZE * SIZE;
-      const STORAGE_KEY = 'shag.daily.v1';
-      const LEGACY_STORAGE_KEY = 'zip.daily.v1';
-      const SHARE_PREFIX = 'SHAG1-';
-      const LEGACY_SHARE_PREFIX = 'ZIP1-';
+      const STORAGE_KEY = 'zigzag.progress.v1';
+      const LEVELS_URL = 'levels.build.json';
+      const NO_ADS_PRODUCT_ID = 'no_ads';
+      const FULLSCREEN_EVERY = 4; // fullscreen-реклама раз в 4–5 пройденных уровней
       const SVG_NS = 'http://www.w3.org/2000/svg';
       const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
       const dialog = $('appDialog');
       const board = $('board');
-      const vkMini = window.vkMini || { bridge: null, active: false, initPromise: Promise.resolve(false) };
+      let SIZE = 6;
+      let CELL_COUNT = SIZE * SIZE;
       const pad = (n) => String(n).padStart(2, '0');
       const icon = (name, extra = '') => `<svg class="icon ${extra}" aria-hidden="true"><use href="#i-${name}"/></svg>`;
       const escapeHTML = (value) => String(value).replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&#60;', '>': '&#62;', '"': '&quot;', "'": '&#39;' })[character]);
       let storageAvailable = true;
       let uiReady = false;
+      let LEVELS = [];
       let state = loadState();
-      let today = dayKey();
-      let puzzle = makePuzzle(today);
-      let game = restoreGame(state.days[today], puzzle);
-      state.days[today] = game;
-      let paused = game.path.length > 0 && !game.completed;
-      let focusedCell = game.path.at(-1) ?? puzzle.solution[0];
+      let levelId = Math.min(Math.max(1, state.current || 1), 100);
+      let puzzle = null;
+      let game = null;
+      let paused = false;
+      let adOpen = false;
+      let focusedCell = 0;
       let cellButtons = [];
       let pointerId = null;
       let previousPoint = null;
       let clockRunning = false;
       let lastClock = performance.now();
       let lastSave = Date.now();
-      let lastReminderCheck = 0;
       let saveTimeout;
       let instructionTimeout;
       let toastTimeout;
       let winTimeout;
       let modalKind = '';
       let modalOrigin = null;
-      let pendingResult = game.completed && !game.promptShown;
+      let pendingResult = false;
 
-      function dayKey(date = new Date()) {
-        return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+      // --- Pikabu SDK: все вызовы защищены, без платформы игра работает локально ---
+      const pkb = { sdk: null };
+      // Любой вызов SDK может повесить промис вне платформы — все await через таймаут.
+      function pkbTimeout(promise, ms = 3500) {
+        return Promise.race([promise, new Promise((resolve) => setTimeout(() => resolve(null), ms))]);
+      }
+      async function pkbInit() {
+        try {
+          if (!window.PkbSDK) return false;
+          // Вне платформы init() может никогда не резолвнуться — не даём ему повесить загрузку.
+          pkb.sdk = await pkbTimeout(window.PkbSDK.init());
+          if (!pkb.sdk) { pkb.sdk = null; return false; }
+          try {
+            if (pkb.sdk.ads?.preloader?.isSupported && await pkbTimeout(pkb.sdk.ads.preloader.canShow())) {
+              await pkbTimeout(pkb.sdk.ads.preloader.show());
+            }
+          } catch { /* Preloader недоступен — стартуем как обычно. */ }
+          try { pkb.sdk.once?.('userAuthorized', () => { cloudSync(); }); } catch { /* События необязательны. */ }
+          return true;
+        } catch { return false; }
+      }
+      function pkbStarted() { try { pkb.sdk?.gameStarted(); } catch { /* Локальный режим. */ } }
+      async function withAdPause(fn) {
+        const wasPaused = paused;
+        syncClock();
+        adOpen = true;
+        if (game?.path.length && !game.completed) { paused = true; render(); }
+        try { return await fn(); }
+        catch { return null; }
+        finally {
+          adOpen = false;
+          if (game && !game.completed) paused = wasPaused;
+          syncClock();
+          if (uiReady) render();
+        }
+      }
+      async function pkbFullscreen() {
+        if (state.noAds || !pkb.sdk?.ads?.fullscreen) return false;
+        try {
+          if (!await pkbTimeout(pkb.sdk.ads.fullscreen.canShow())) return false;
+          const result = await withAdPause(() => pkbTimeout(pkb.sdk.ads.fullscreen.show(), 60000));
+          return result?.rendered === true;
+        } catch { return false; }
+      }
+      async function pkbRewarded() {
+        if (!pkb.sdk?.ads?.rewarded) return true; // вне платформы — подсказка бесплатно
+        try {
+          if (!await pkbTimeout(pkb.sdk.ads.rewarded.canShow())) { showToast('Реклама сейчас недоступна. Подсказка — за наш счёт.'); return true; }
+          const result = await withAdPause(() => pkbTimeout(pkb.sdk.ads.rewarded.show(), 60000));
+          if (!result) return false;
+          return result.reward === true;
+        } catch { return false; }
+      }
+      async function pkbRestorePurchases() {
+        if (!pkb.sdk?.store) return;
+        try {
+          const purchases = await pkbTimeout(pkb.sdk.store.getPurchases());
+          if (purchases?.some((p) => p.productId === NO_ADS_PRODUCT_ID)) { state.noAds = true; persist(); }
+        } catch { /* Проверим в следующий раз. */ }
+      }
+      async function pkbBuyNoAds() {
+        if (!pkb.sdk?.store) { showToast('Покупки доступны только на площадке Пикабу Игры.'); return; }
+        try {
+          if (!pkb.sdk.player?.isAuthorized) {
+            await pkbTimeout(pkb.sdk.auth?.openAuthDialog?.(), 60000);
+            if (!pkb.sdk.player?.isAuthorized) { showToast('Без входа покупка не получится.'); return; }
+          }
+          const result = await pkbTimeout(pkb.sdk.store.purchase({ productId: NO_ADS_PRODUCT_ID }), 120000);
+          if (!result || !result.success) { if (result?.reason !== 'USER_CANCELLED') showToast('Покупка не завершена.'); return; }
+          state.noAds = true;
+          persist();
+          renderSide();
+          showToast('Реклама отключена. Спасибо!');
+          if (dialog.open) dialog.close();
+        } catch { showToast('Не получилось открыть оплату.'); }
+      }
+      function cloudSync() { /* Bothost/Supabase — следующим этапом (PIKABU_PLAN.md п.6–7). */ }
+
+      function levelDef(id) { return LEVELS.find((l) => l.id === id) || null; }
+
+      function buildPuzzle(def) {
+        SIZE = def.size;
+        CELL_COUNT = SIZE * SIZE;
+        const numbers = new Map(Object.entries(def.numbers).map(([cell, num]) => [Number(cell), num]));
+        const blocked = new Set(def.walls.map(([a, b]) => edgeKey(a, b)));
+        const neighbors = Array.from({ length: CELL_COUNT }, (_, cell) =>
+          gridNeighbors(cell).filter((neighbor) => !blocked.has(edgeKey(cell, neighbor))));
+        let start = 0, maxNum = 0;
+        numbers.forEach((num, cell) => {
+          if (num === 1) start = cell;
+          if (num > maxNum) maxNum = num;
+        });
+        return { id: def.id, size: SIZE, numbers, walls: def.walls, blocked, neighbors, start, maxNum, hint: def.hint };
       }
 
-      function shiftDay(key, amount) {
-        const date = new Date(`${key}T12:00:00`);
-        date.setDate(date.getDate() + amount);
-        return dayKey(date);
-      }
-
-      function puzzleNumber(key = today) {
-        const [year, month, date] = key.split('-').map(Number);
-        return Math.max(1, Math.floor((Date.UTC(year, month - 1, date) - Date.UTC(2025, 2, 17)) / 86400000) + 1);
-      }
-
-      function displayDate(key = today, long = false) {
-        return new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'long', ...(long ? { year: 'numeric' } : {}) }).format(new Date(`${key}T12:00:00`));
-      }
+      function doneCount() { return Object.keys(state.done).length; }
 
       function formatTime(seconds) {
         const total = Math.max(0, Math.floor(seconds));
@@ -639,37 +717,6 @@
       function plural(number, forms) {
         const n = Math.abs(number) % 100;
         return forms[n > 10 && n < 20 ? 2 : n % 10 === 1 ? 0 : n % 10 >= 2 && n % 10 <= 4 ? 1 : 2];
-      }
-
-      function vkSend(event, params = {}) {
-        return (vkMini.initPromise || Promise.resolve(vkMini.active)).then((active) => {
-          if (!active || !vkMini.bridge) throw new Error('VK Bridge is unavailable');
-          return vkMini.bridge.send(event, params);
-        });
-      }
-
-      function vkHaptic(type = 'success') {
-        if (!vkMini.active) return;
-        vkSend('VKWebAppTapticNotificationOccurred', { type }).catch(() => {});
-      }
-
-      function setupVKMiniApp() {
-        (vkMini.initPromise || Promise.resolve(false)).then(async (active) => {
-          if (!active) return;
-          document.body.classList.add('vk-mini-app');
-          $('vkNote').hidden = false;
-          vkSend('VKWebAppSetViewSettings', { status_bar_style: 'dark', action_bar_color: '#f7f7f2', navigation_bar_color: '#f7f7f2' }).catch(() => {});
-          try {
-            const user = await vkSend('VKWebAppGetUserInfo');
-            if (!user?.id) return;
-            vkMini.user = user;
-            const vkName = `${user.first_name || ''} ${user.last_name || ''}`.trim().slice(0, 24);
-            state.profile.id = `vk-${user.id}`;
-            if (!state.profile.name && vkName) state.profile.name = vkName;
-            persist();
-            renderStreak();
-          } catch { /* A user may decline profile data; the local fallback remains usable. */ }
-        });
       }
 
       function edgeKey(a, b) { return a < b ? `${a}:${b}` : `${b}:${a}`; }
@@ -685,60 +732,13 @@
         return result;
       }
 
-      function hashSeed(text) {
-        let hash = 2166136261;
-        for (let i = 0; i < text.length; i++) hash = Math.imul(hash ^ text.charCodeAt(i), 16777619);
-        return hash >>> 0;
-      }
-
-      function randomSource(seed) {
-        return () => {
-          seed += 0x6D2B79F5;
-          let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
-          t ^= t + Math.imul(t ^ (t >>> 7), 61 | t);
-          return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-        };
-      }
-
-      function makePuzzle(key) {
-        // Keep the original seed namespace so existing daily progress remains valid after the rename.
-        const seed = hashSeed(`zip-v1-${key}`);
-        const random = randomSource(seed);
-        let solution = [];
-        for (let r = 0; r < SIZE; r++) {
-          for (let c = 0; c < SIZE; c++) solution.push(r * SIZE + (r % 2 ? SIZE - 1 - c : c));
-        }
-        // Backbite moves randomize a Hamiltonian path without losing any cell or breaking adjacency.
-        for (let i = 0; i < 500; i++) {
-          if (random() < .5) solution.reverse();
-          const candidates = gridNeighbors(solution[0]).filter((cell) => cell !== solution[1]);
-          if (!candidates.length) continue;
-          const joinAt = solution.indexOf(candidates[Math.floor(random() * candidates.length)]);
-          solution = solution.slice(0, joinAt).reverse().concat(solution.slice(joinAt));
-        }
-        const numbers = new Map();
-        [0, 5, 10, 15, 20, 25, 30, 35].forEach((position, index) => numbers.set(solution[position], index + 1));
-        const solutionEdges = new Set(solution.slice(1).map((cell, index) => edgeKey(solution[index], cell)));
-        const possibleWalls = [];
-        for (let cell = 0; cell < CELL_COUNT; cell++) {
-          for (const neighbor of gridNeighbors(cell)) {
-            if (neighbor > cell && !solutionEdges.has(edgeKey(cell, neighbor))) possibleWalls.push([cell, neighbor]);
-          }
-        }
-        for (let i = possibleWalls.length - 1; i > 0; i--) {
-          const j = Math.floor(random() * (i + 1));
-          [possibleWalls[i], possibleWalls[j]] = [possibleWalls[j], possibleWalls[i]];
-        }
-        const walls = possibleWalls.slice(0, 3 + (seed % 2));
-        const blocked = new Set(walls.map(([a, b]) => edgeKey(a, b)));
-        const neighbors = Array.from({ length: CELL_COUNT }, (_, cell) => gridNeighbors(cell).filter((neighbor) => !blocked.has(edgeKey(cell, neighbor))));
-        return { day: key, solution, numbers, walls, blocked, neighbors };
-      }
+      // Уровни приходят готовыми из levels.build.json (см. gen-levels.mjs).
+      // Браузер ничего не генерирует — только строит puzzle из описания уровня.
 
       function validPath(path, data, complete = false) {
         if (!Array.isArray(path) || path.length > CELL_COUNT || (complete && path.length !== CELL_COUNT)) return false;
         if (!path.length) return !complete;
-        if (path[0] !== data.solution[0]) return false;
+        if (path[0] !== data.start) return false;
         const visited = new Set();
         let next = 1;
         for (let i = 0; i < path.length; i++) {
@@ -748,11 +748,11 @@
           visited.add(cell);
           const number = data.numbers.get(cell);
           if (number) {
-            if (number !== next || (number === 8 && i !== CELL_COUNT - 1)) return false;
+            if (number !== next || (number === data.maxNum && i !== CELL_COUNT - 1)) return false;
             next++;
           }
         }
-        return !complete || next === 9;
+        return !complete || next === data.maxNum + 1;
       }
 
       function newId() {
@@ -760,7 +760,7 @@
       }
 
       function freshState() {
-        return { version: 1, profile: { id: newId(), name: '' }, days: {}, friends: [], reminder: { enabled: false, platform: 'browser', time: '19:00', lastSent: '', calendarDownloaded: false } };
+        return { version: 1, profile: { id: newId() }, current: 1, done: {}, inprogress: null, noAds: false, sound: true, fsSince: 0 };
       }
 
       function sanitizeState(source) {
@@ -768,23 +768,29 @@
         if (!source || typeof source !== 'object' || source.version !== 1) return result;
         if (source.profile && typeof source.profile.id === 'string' && /^[\w-]{6,64}$/.test(source.profile.id)) {
           result.profile.id = source.profile.id;
-          result.profile.name = typeof source.profile.name === 'string' ? source.profile.name.trim().slice(0, 24) : '';
         }
-        if (source.days && typeof source.days === 'object' && !Array.isArray(source.days)) {
-          for (const key of Object.keys(source.days).filter((key) => /^\d{4}-\d{2}-\d{2}$/.test(key)).sort().slice(-400)) result.days[key] = source.days[key];
+        if (Number.isInteger(source.current)) result.current = Math.min(100, Math.max(1, source.current));
+        if (source.done && typeof source.done === 'object') {
+          for (const [key, value] of Object.entries(source.done)) {
+            const id = Number(key);
+            if (!Number.isInteger(id) || id < 1 || id > 100 || !value || typeof value !== 'object') continue;
+            result.done[id] = {
+              t: Number.isFinite(value.t) ? Math.min(604800, Math.max(1, value.t)) : 0,
+              h: Number.isInteger(value.h) ? Math.min(9999, Math.max(0, value.h)) : 0,
+            };
+          }
         }
-        if (Array.isArray(source.friends)) {
-          result.friends = source.friends.slice(-300).filter((packet) => {
-            try { validatePacket(packet); return packet.done; } catch { return false; }
-          });
-        }
-        if (source.reminder && typeof source.reminder === 'object') {
-          result.reminder = {
-            enabled: source.reminder.enabled === true,
-            platform: source.reminder.platform === 'vk' ? 'vk' : 'browser',
-            time: validTime(source.reminder.time) ? source.reminder.time : '19:00',
-            lastSent: typeof source.reminder.lastSent === 'string' ? source.reminder.lastSent : '',
-            calendarDownloaded: source.reminder.calendarDownloaded === true
+        result.noAds = source.noAds === true;
+        result.sound = source.sound !== false;
+        if (Number.isInteger(source.fsSince)) result.fsSince = Math.max(0, source.fsSince);
+        const ip = source.inprogress;
+        if (ip && typeof ip === 'object' && Number.isInteger(ip.id) && ip.id >= 1 && ip.id <= 100 && Array.isArray(ip.path)) {
+          result.inprogress = {
+            id: ip.id,
+            path: ip.path.filter((c) => Number.isInteger(c)),
+            seconds: Number.isFinite(ip.seconds) ? Math.min(604800, Math.max(0, ip.seconds)) : 0,
+            hints: Number.isInteger(ip.hints) ? Math.min(9999, Math.max(0, ip.hints)) : 0,
+            hint: Number.isInteger(ip.hint) ? ip.hint : null,
           };
         }
         return result;
@@ -794,13 +800,10 @@
         try {
           localStorage.setItem(`${STORAGE_KEY}.test`, '1');
           localStorage.removeItem(`${STORAGE_KEY}.test`);
-          const legacy = localStorage.getItem(LEGACY_STORAGE_KEY);
-          const raw = localStorage.getItem(STORAGE_KEY) || legacy;
+          const raw = localStorage.getItem(STORAGE_KEY);
           if (!raw) return freshState();
           try {
-            const loaded = sanitizeState(JSON.parse(raw));
-            if (!localStorage.getItem(STORAGE_KEY) && legacy) localStorage.setItem(STORAGE_KEY, JSON.stringify(loaded));
-            return loaded;
+            return sanitizeState(JSON.parse(raw));
           }
           catch { localStorage.removeItem(STORAGE_KEY); return freshState(); }
         } catch {
@@ -810,14 +813,13 @@
       }
 
       function restoreGame(source, data) {
-        const record = { path: [], seconds: 0, hints: 0, hint: null, completed: false, completedAt: null, promptShown: false };
+        const record = { path: [], seconds: 0, hints: 0, hint: null, completed: false, completedAt: null };
         if (!source || typeof source !== 'object') return record;
         if (validPath(source.path, data)) record.path = [...source.path];
         record.seconds = Number.isFinite(source.seconds) ? Math.min(604800, Math.max(0, source.seconds)) : 0;
         record.hints = Number.isInteger(source.hints) ? Math.min(9999, Math.max(0, source.hints)) : 0;
         record.completed = validPath(record.path, data, true);
         record.completedAt = record.completed && typeof source.completedAt === 'string' ? source.completedAt : null;
-        record.promptShown = record.completed && source.promptShown === true;
         if (record.completed) record.seconds = Math.max(1, Math.ceil(record.seconds));
         if (Number.isInteger(source.hint) && source.hint >= 0 && source.hint < CELL_COUNT && !record.path.includes(source.hint)) record.hint = source.hint;
         return record;
@@ -825,32 +827,17 @@
 
       function persist() {
         clearTimeout(saveTimeout);
-        state.days[today] = game;
+        if (game) {
+          if (game.completed) { if (state.inprogress?.id === levelId) state.inprogress = null; }
+          else state.inprogress = { id: levelId, path: [...game.path], seconds: game.seconds, hints: game.hints, hint: game.hint };
+        }
         try {
-          // A completed daily game in another tab must never be overwritten by an older attempt.
-          let previous = null;
-          try { previous = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null'); } catch { /* Replace an unreadable save with the current valid state. */ }
-          if (previous?.profile?.id === state.profile.id && previous.days) {
-            for (const [key, value] of Object.entries(previous.days)) {
-              if (!/^\d{4}-\d{2}-\d{2}$/.test(key) || !value?.completed || state.days[key]?.completed) continue;
-              if (key === today) {
-                const completedRecord = restoreGame(value, puzzle);
-                if (completedRecord.completed) {
-                  game = completedRecord;
-                  paused = false;
-                  state.days[today] = game;
-                  if (uiReady) queueMicrotask(() => { render(); syncClock(); });
-                }
-              } else state.days[key] = value;
-            }
-          }
-          const keys = Object.keys(state.days).sort();
-          keys.slice(0, Math.max(0, keys.length - 400)).forEach((key) => delete state.days[key]);
           localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
           storageAvailable = true;
           lastSave = Date.now();
         } catch { storageAvailable = false; }
         if (uiReady) $('storageWarning').hidden = storageAvailable;
+        cloudSync();
       }
 
       function queueSave() {
@@ -858,7 +845,7 @@
         saveTimeout = setTimeout(persist, 180);
       }
 
-      function isRunning() { return game.path.length > 0 && !game.completed && !paused && !dialog.open && !document.hidden; }
+      function isRunning() { return game.path.length > 0 && !game.completed && !paused && !adOpen && !dialog.open && !document.hidden; }
 
       function advanceClock(seconds, deltaMilliseconds, running, completed) {
         return running && !completed ? Math.min(604800, seconds + Math.max(0, deltaMilliseconds) / 1000) : seconds;
@@ -873,7 +860,24 @@
         if ($('timerText').textContent !== text) $('timerText').textContent = text;
       }
 
+      function boardStep() { return 600 / SIZE; }
+
       function buildBoard() {
+        const grid = $('boardCells');
+        grid.style.gridTemplateColumns = `repeat(${SIZE}, 1fr)`;
+        grid.style.gridTemplateRows = `repeat(${SIZE}, 1fr)`;
+        grid.setAttribute('aria-rowcount', SIZE);
+        grid.setAttribute('aria-colcount', SIZE);
+        grid.setAttribute('aria-label', `Соедините числа от 1 до ${puzzle.maxNum}`);
+        board.setAttribute('aria-label', `Игровое поле ${SIZE} на ${SIZE}`);
+        board.dataset.size = SIZE;
+        const step = boardStep();
+        let gridD = '';
+        for (let i = 1; i < SIZE; i++) gridD += `M${i * step} 0V600M0 ${i * step}H600`;
+        $('boardGrid').replaceChildren();
+        const gridPath = document.createElementNS(SVG_NS, 'path');
+        gridPath.setAttribute('d', gridD);
+        $('boardGrid').append(gridPath);
         const fragment = document.createDocumentFragment();
         cellButtons = [];
         for (let r = 0; r < SIZE; r++) {
@@ -914,14 +918,16 @@
         $('boardWalls').replaceChildren();
         for (const [a, b] of puzzle.walls) {
           const wall = document.createElementNS(SVG_NS, 'path');
+          const inset = Math.min(6, step * 0.06);
+          const len = step - inset * 2;
           const d = row(a) === row(b)
-            ? `M${Math.max(col(a), col(b)) * 100} ${row(a) * 100 + 5}v90`
-            : `M${col(a) * 100 + 5} ${Math.max(row(a), row(b)) * 100}h90`;
+            ? `M${Math.max(col(a), col(b)) * step} ${row(a) * step + inset}v${len}`
+            : `M${col(a) * step + inset} ${Math.max(row(a), row(b)) * step}h${len}`;
           wall.setAttribute('d', d);
           $('boardWalls').append(wall);
         }
-        $('puzzleNumber').textContent = `#${puzzleNumber()}`;
-        $('puzzleDate').textContent = displayDate();
+        $('puzzleNumber').textContent = `Уровень ${levelId}`;
+        $('puzzleDate').textContent = `${SIZE} на ${SIZE}`;
       }
 
       function pathData(path, size = SIZE, step = 100) {
@@ -938,12 +944,12 @@
         board.classList.toggle('complete', game.completed);
         board.inert = paused && !game.completed;
         board.setAttribute('aria-disabled', String(paused || game.completed));
-        $('drawnPath').setAttribute('d', pathData(game.path));
+        $('drawnPath').setAttribute('d', pathData(game.path, SIZE, boardStep()));
         const last = game.path.at(-1);
         $('pathTip').setAttribute('opacity', last !== undefined && game.path.length > 1 && !game.completed ? '1' : '0');
         if (last !== undefined) {
-          $('pathTip').setAttribute('cx', (col(last) + .5) * 100);
-          $('pathTip').setAttribute('cy', (row(last) + .5) * 100);
+          $('pathTip').setAttribute('cx', (col(last) + .5) * boardStep());
+          $('pathTip').setAttribute('cy', (row(last) + .5) * boardStep());
         }
         cellButtons.forEach((button, cell) => {
           button.classList.toggle('visited', visited.has(cell));
@@ -968,7 +974,7 @@
         $('storageWarning').hidden = storageAvailable;
         clearTimeout(instructionTimeout);
         defaultInstruction();
-        renderStreak();
+        renderSide();
       }
 
       function setInstruction(text, error = false) {
@@ -978,17 +984,16 @@
 
       function defaultInstruction() {
         $('instructionIcon').setAttribute('href', game.completed ? '#i-check' : game.hint !== null ? '#i-bulb' : '#i-hand');
-        if (game.completed) setInstruction('Маленькая победа засчитана. До завтра!');
+        if (game.completed) setInstruction('Уровень пройден. Так держать!');
         else if (paused) setInstruction('Пауза. Продолжите, когда будете готовы.');
         else if (game.hint !== null) setInstruction('Следующий шаг отмечен оранжевым пунктиром');
         else if (!game.path.length) setInstruction('Потяните от 1, чтобы начать свой путь');
-        else if (nextNumber() === 8) setInstruction(`Ещё ${CELL_COUNT - game.path.length} ${plural(CELL_COUNT - game.path.length, ['клетка', 'клетки', 'клеток'])}. Финишируйте на 8.`);
+        else if (nextNumber() === puzzle.maxNum) setInstruction(`Ещё ${CELL_COUNT - game.path.length} ${plural(CELL_COUNT - game.path.length, ['клетка', 'клетки', 'клеток'])}. Финишируйте на ${puzzle.maxNum}.`);
         else setInstruction(`Следующее число: ${nextNumber()}. Не пропускайте клетки.`);
       }
 
       function invalidMove(cell, message, quiet) {
         if (!quiet) {
-          vkHaptic('warning');
           clearTimeout(instructionTimeout);
           setInstruction(message, true);
           instructionTimeout = setTimeout(defaultInstruction, 2800);
@@ -1011,9 +1016,9 @@
       }
 
       function attemptCell(cell, quiet = false) {
-        if (rollDay() || game.completed || paused || dialog.open || !Number.isInteger(cell) || cell < 0 || cell >= CELL_COUNT) return false;
+        if (adOpen || game.completed || paused || dialog.open || !Number.isInteger(cell) || cell < 0 || cell >= CELL_COUNT) return false;
         if (!game.path.length) {
-          if (cell !== puzzle.solution[0]) return invalidMove(cell, 'Начните с оранжевой единицы', quiet);
+          if (cell !== puzzle.start) return invalidMove(cell, 'Начните с оранжевой единицы', quiet);
           game.path = [cell];
           syncClock();
           render();
@@ -1035,7 +1040,7 @@
         if (puzzle.blocked.has(edgeKey(tail, cell))) return invalidMove(cell, 'Здесь стенка. Найдите другой путь.', quiet);
         const number = puzzle.numbers.get(cell);
         if (number && number !== nextNumber()) return invalidMove(cell, `Сначала соедините число ${nextNumber()}`, quiet);
-        if (number === 8 && game.path.length !== CELL_COUNT - 1) return invalidMove(cell, 'До финиша нужно заполнить все клетки', quiet);
+        if (number === puzzle.maxNum && game.path.length !== CELL_COUNT - 1) return invalidMove(cell, 'До финиша нужно заполнить все клетки', quiet);
         game.path.push(cell);
         game.hint = null;
         if (number) {
@@ -1103,19 +1108,19 @@
 
       function showReset() {
         if (game.completed || !game.path.length || paused) return;
-        const attemptDay = today;
+        const attemptLevel = levelId;
         openDialog('reset', `
           <div class="modal-symbol">${icon('reset')}</div>
           <h2 class="modal-title" id="modalTitle" tabindex="-1">Посмотрим по-новому?</h2>
           <p class="modal-description">Линия очистится, и можно будет выбрать другой путь. Время и использованные подсказки сохранятся.</p>
           <div class="button-row"><button class="button button-secondary" id="cancelReset">Продолжить</button><button class="button button-primary" id="confirmReset">Начать заново</button></div>
-          <p class="modal-small">Это та же задача дня. Число попыток не ограничено.</p>`);
+          <p class="modal-small">Это тот же уровень. Число попыток не ограничено.</p>`);
         $('cancelReset').onclick = () => dialog.close();
         $('confirmReset').onclick = () => {
-          if (game.completed || today !== attemptDay) { dialog.close(); return; }
-          game.path = [puzzle.solution[0]];
+          if (game.completed || levelId !== attemptLevel) { dialog.close(); return; }
+          game.path = [puzzle.start];
           game.hint = null;
-          focusedCell = puzzle.solution[0];
+          focusedCell = puzzle.start;
           render();
           persist();
           dialog.close();
@@ -1123,119 +1128,120 @@
         };
       }
 
+      // Общий решатель без эталонного решения: ищет любое продолжение пути.
       function findContinuation(data, prefix) {
-        if (prefix.every((cell, index) => cell === data.solution[index])) return [...data.solution];
-        const visited = new Uint8Array(CELL_COUNT);
+        const total = SIZE * SIZE;
+        const end = [...data.numbers.entries()].find(([, num]) => num === data.maxNum)?.[0];
+        if (end === undefined || !prefix.length) return null;
+        const visited = new Uint8Array(total);
         prefix.forEach((cell) => { visited[cell] = 1; });
         const route = [...prefix];
-        const end = data.solution.at(-1);
-        const deadline = performance.now() + 120;
+        const deadline = performance.now() + 600;
         let nodes = 0;
         let answer = null;
         const next = prefix.reduce((number, cell) => Math.max(number, (data.numbers.get(cell) || 0) + 1), 1);
 
-        function connected(current) {
-          for (let cell = 0; cell < CELL_COUNT; cell++) {
+        function viable(current) {
+          // Степенной прунинг: у каждой непосещённой клетки должно остаться
+          // достаточно свободных соседей, иначе путь уже зашёл в тупик.
+          for (let cell = 0; cell < total; cell++) {
             if (visited[cell]) continue;
-            const degree = data.neighbors[cell].filter((neighbor) => !visited[neighbor] || neighbor === current).length;
+            let degree = 0;
+            for (const nb of data.neighbors[cell]) if (!visited[nb] || nb === current) degree++;
             if (degree < (cell === end ? 1 : 2)) return false;
           }
-          const seen = new Uint8Array(CELL_COUNT);
+          // Связность: все непосещённые достижимы от головы.
+          const seen = new Uint8Array(total);
           const stack = [current];
           seen[current] = 1;
           let count = 0;
           while (stack.length) {
             const cell = stack.pop();
             count++;
-            for (const neighbor of data.neighbors[cell]) {
-              if (!seen[neighbor] && !visited[neighbor]) { seen[neighbor] = 1; stack.push(neighbor); }
+            for (const nb of data.neighbors[cell]) {
+              if (!seen[nb] && !visited[nb]) { seen[nb] = 1; stack.push(nb); }
             }
           }
-          return count === CELL_COUNT - route.length + 1;
+          return count === total - route.length + 1;
         }
 
         function search(current, needed) {
-          if (++nodes > 45000 || (nodes % 64 === 0 && performance.now() > deadline)) return false;
-          if (route.length === CELL_COUNT) {
-            if (current === end && needed === 9) { answer = [...route]; return true; }
-            return false;
+          if (++nodes > 400000 || answer) return;
+          if ((nodes & 63) === 0 && (performance.now() > deadline || !viable(current))) return;
+          if (route.length === total) {
+            if (current === end && needed === data.maxNum + 1) answer = [...route];
+            return;
           }
-          if (distance(current, end) > CELL_COUNT - route.length) return false;
-          const candidates = data.neighbors[current].filter((cell) => !visited[cell] && (!data.numbers.has(cell) || data.numbers.get(cell) === needed) && (cell !== end || route.length === CELL_COUNT - 1));
-          candidates.sort((a, b) => data.neighbors[a].filter((cell) => !visited[cell]).length - data.neighbors[b].filter((cell) => !visited[cell]).length);
+          const candidates = data.neighbors[current]
+            .filter((cell) => !visited[cell] && (!data.numbers.has(cell) || data.numbers.get(cell) === needed) && (cell !== end || route.length === total - 1))
+            .sort((a, b) => data.neighbors[a].filter((cell) => !visited[cell]).length - data.neighbors[b].filter((cell) => !visited[cell]).length);
           for (const cell of candidates) {
             visited[cell] = 1;
             route.push(cell);
-            if (connected(cell) && search(cell, needed + (data.numbers.has(cell) ? 1 : 0))) return true;
+            search(cell, needed + (data.numbers.has(cell) ? 1 : 0));
             route.pop();
             visited[cell] = 0;
-            if (performance.now() > deadline) return false;
+            if (answer || performance.now() > deadline) return;
           }
-          return false;
         }
-        if (prefix.length) search(prefix.at(-1), next);
+        if (viable(prefix.at(-1))) search(prefix.at(-1), next);
         return answer;
       }
 
-      function showHint() {
-        if (game.completed || paused) return;
-        if (game.hint !== null) { showToast('Следующая клетка уже отмечена оранжевым пунктиром.'); return; }
-        const attemptDay = today;
-        const continuation = findContinuation(puzzle, game.path);
-        let prefix = game.path.length ? [...game.path] : [puzzle.solution[0]];
-        let target;
-        let removed = 0;
-        if (continuation) target = continuation[prefix.length];
-        else {
-          let common = 0;
-          while (common < game.path.length && game.path[common] === puzzle.solution[common]) common++;
-          prefix = puzzle.solution.slice(0, Math.max(1, common));
-          removed = game.path.length - prefix.length;
-          target = puzzle.solution[prefix.length];
+      function grantHint() {
+        // С пустого поля — запечённая подсказка (мгновенно, без перебора).
+        if (!game.path.length && Number.isInteger(puzzle.hint)) {
+          game.hints = Math.min(9999, game.hints + 1);
+          game.hint = puzzle.hint;
+          focusedCell = puzzle.start;
+          render();
+          persist();
+          syncClock();
+          focusCell(focusedCell);
+          return;
         }
+        const prefix = [...game.path];
+        const continuation = findContinuation(puzzle, prefix);
+        if (!continuation) {
+          showToast('Не вижу продолжения отсюда. Отмените пару шагов и попробуйте снова.');
+          return;
+        }
+        game.path = [...prefix];
+        game.hints = Math.min(9999, game.hints + 1);
+        game.hint = continuation[prefix.length];
+        focusedCell = prefix.at(-1);
+        render();
+        persist();
+        syncClock();
+        focusCell(focusedCell);
+      }
+
+      function showHint() {
+        if (game.completed || paused || adOpen) return;
+        if (game.hint !== null) { showToast('Следующая клетка уже отмечена оранжевым пунктиром.'); return; }
+        if (state.noAds) { grantHint(); return; }
         openDialog('hint', `
           <div class="modal-symbol">${icon('bulb')}</div>
           <h2 class="modal-title" id="modalTitle" tabindex="-1">Небольшой намёк?</h2>
-          <p class="modal-description">${removed > 0 ? `Для этого варианта решения вернём линию на ${removed} ${plural(removed, ['клетку', 'клетки', 'клеток'])} назад, затем подсветим следующий шаг. Ваш путь может иметь и другое продолжение.` : 'Подсветим одну соседнюю клетку, которая поможет найти путь. Дальше снова вы.'}</p>
-          <div class="button-row"><button class="button button-secondary" id="cancelHint">Я ещё подумаю</button><button class="button button-primary" id="confirmHint">Показать шаг</button></div>
-          <p class="modal-small">Подсказки отмечаются в результате. Иногда маленькая помощь важнее рекорда.</p>`);
+          <p class="modal-description">Подсветим одну соседнюю клетку, которая поможет найти путь. Дальше снова вы.</p>
+          <div class="button-row"><button class="button button-secondary" id="cancelHint">Я ещё подумаю</button><button class="button button-primary" id="confirmHint">Смотреть и получить шаг</button></div>
+          <p class="modal-small">Нужно посмотреть короткий ролик. Подсказки отмечаются в результате.</p>`);
         $('cancelHint').onclick = () => dialog.close();
-        $('confirmHint').onclick = () => {
-          if (game.completed || today !== attemptDay) { dialog.close(); return; }
-          game.path = [...prefix];
-          game.hints = Math.min(9999, game.hints + 1);
-          game.hint = target;
-          focusedCell = prefix.at(-1);
-          render();
-          persist();
-          dialog.close();
-          syncClock();
-          focusCell(focusedCell);
+        $('confirmHint').onclick = async () => {
+          $('confirmHint').disabled = true;
+          const ok = await pkbRewarded();
+          if (dialog.open) dialog.close();
+          if (ok) grantHint();
+          else showToast('Не получилось показать ролик. Попробуйте позже.');
         };
       }
 
-      function streak() {
-        let key = state.days[today]?.completed ? today : shiftDay(today, -1);
-        let count = 0;
-        while (state.days[key]?.completed && count < 400) { count++; key = shiftDay(key, -1); }
-        return count;
-      }
-
-      function renderStreak() {
-        const count = streak();
-        $('streakValue').textContent = `${count} ${plural(count, ['день', 'дня', 'дней'])}`;
-        $('streakDescription').textContent = game.completed ? 'Сегодня вы нашли свой путь. До завтра!' : count ? 'Ещё одна игра, и серия продолжится.' : 'Начните с одной маленькой победы.';
-        const dayOfWeek = new Date(`${today}T12:00:00`).getDay();
-        const monday = shiftDay(today, -((dayOfWeek + 6) % 7));
-        $('weekProgress').innerHTML = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'].map((name, index) => {
-          const key = shiftDay(monday, index);
-          const done = !!state.days[key]?.completed;
-          const label = `${displayDate(key)}: ${done ? 'пройдено' : key === today ? 'сегодня' : key > today ? 'ещё впереди' : 'не пройдено'}`;
-          return `<div class="week-day${key === today ? ' today' : ''}${done ? ' done' : ''}" role="img" aria-label="${escapeHTML(label)}" title="${escapeHTML(label)}"><span class="week-dot" aria-hidden="true">${done ? icon('check') : ''}</span><span class="week-label" aria-hidden="true">${name}</span></div>`;
-        }).join('');
-        const enabled = state.reminder.enabled && ((state.reminder.platform === 'vk' && vkMini.active) || (state.reminder.platform !== 'vk' && 'Notification' in window && Notification.permission === 'granted'));
-        $('navReminder').classList.toggle('enabled', enabled);
-        $('reminderLabel').textContent = enabled ? `${state.reminder.platform === 'vk' ? 'VK: ' : ''}напоминать в ${state.reminder.time}` : 'Напомнить о новой игре';
+      function renderSide() {
+        const done = doneCount();
+        $('streakValue').textContent = `${done} из 100`;
+        $('streakDescription').textContent = game?.completed
+          ? `Уровень ${levelId} пройден. Вперёд, к следующему!`
+          : done ? `Пройдено: ${done}. Текущий — уровень ${levelId}.` : 'Начните с первого уровня — он быстрый.';
       }
 
       function finishGame() {
@@ -1245,14 +1251,19 @@
         game.completedAt = new Date().toISOString();
         game.seconds = Math.max(1, Math.ceil(game.seconds));
         game.hint = null;
-        game.promptShown = false;
         paused = false;
         pendingResult = true;
         stopPointer();
         syncClock();
+        const prev = state.done[levelId];
+        state.done[levelId] = {
+          t: prev ? Math.min(prev.t, game.seconds) : game.seconds,
+          h: prev ? Math.min(prev.h, game.hints) : game.hints,
+        };
+        if (levelId < 100) state.current = Math.max(state.current, levelId + 1);
+        state.fsSince += 1;
         persist();
         render();
-        vkHaptic('success');
         celebrate();
         clearTimeout(winTimeout);
         winTimeout = setTimeout(() => { if (!dialog.open && pendingResult) showResult(); }, reducedMotion ? 0 : 550);
@@ -1278,13 +1289,6 @@
         setTimeout(() => layer.replaceChildren(), 4000);
       }
 
-      function countdown() {
-        const now = new Date();
-        const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-        const seconds = Math.max(0, Math.ceil((tomorrow - now) / 1000));
-        return `${pad(Math.floor(seconds / 3600))}:${pad(Math.floor(seconds / 60) % 60)}:${pad(seconds % 60)}`;
-      }
-
       function openDialog(kind, content, centered = false) {
         syncClock();
         stopPointer();
@@ -1304,456 +1308,90 @@
       function showResult() {
         if (!game.completed) return;
         pendingResult = false;
-        game.promptShown = true;
         persist();
-        const count = streak();
+        const hasNext = levelId < 100;
         openDialog('result', `
           <svg class="result-symbol" viewBox="0 0 82 75" aria-hidden="true"><path d="m41 2 9 7 12-1 4 11 10 7-3 12 3 12-10 7-4 11-12-1-9 7-9-7-12 1-4-11-10-7 3-12-3-12 10-7 4-11 12 1 9-7Z" fill="#ffe6cb"/><circle cx="41" cy="38" r="22" fill="#f5753c"/><path d="m30 38 7 7 15-16" stroke="white" stroke-width="3.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          <div class="modal-eyebrow">ВАША МАЛЕНЬКАЯ ПОБЕДА</div>
+          <div class="modal-eyebrow">УРОВЕНЬ ${levelId} ПРОЙДЕН</div>
           <h2 class="modal-title" id="modalTitle" tabindex="-1">Всё сошлось!</h2>
-          <p class="modal-description">Задача #${puzzleNumber()} решена.<br>Одна линия, и голова немного яснее.</p>
-          <div class="result-stats"><div class="result-stat"><strong>${formatTime(game.seconds)}</strong><span>ВАШЕ ВРЕМЯ</span></div><div class="result-stat"><strong>${game.hints}</strong><span>ПОДСКАЗОК</span></div><div class="result-stat"><strong>${count}</strong><span>${plural(count, ['ДЕНЬ ПОДРЯД', 'ДНЯ ПОДРЯД', 'ДНЕЙ ПОДРЯД'])}</span></div></div>
-          <h3 class="rank-question">Узнать своё место<br>среди друзей?</h3>
-          <button class="button button-primary button-full" id="resultFriends">${icon('users')}Узнать своё место${icon('arrow')}</button>
-          <button class="button button-subtle button-full" id="resultLater">Не сейчас</button>
-          <button class="button button-secondary button-full result-share" id="resultShare">${icon('share')}Поделиться результатом</button>
-          <p class="next-puzzle">Следующая головоломка через <span data-countdown>${countdown()}</span><br><button class="demo-link" id="resultReminder">${icon('bell')}${state.reminder.enabled ? 'Настроить напоминание' : 'Напомнить завтра'}</button></p>`, true);
-        $('resultFriends').onclick = showFriends;
-        $('resultLater').onclick = () => dialog.close();
-        $('resultShare').onclick = showShare;
-        $('resultReminder').onclick = showReminder;
+          <p class="modal-description">Поле ${SIZE} на ${SIZE}. Одна линия, и голова немного яснее.</p>
+          <div class="result-stats"><div class="result-stat"><strong>${formatTime(game.seconds)}</strong><span>ВАШЕ ВРЕМЯ</span></div><div class="result-stat"><strong>${game.hints}</strong><span>ПОДСКАЗОК</span></div><div class="result-stat"><strong>${doneCount()}</strong><span>${plural(doneCount(), ['УРОВЕНЬ', 'УРОВНЯ', 'УРОВНЕЙ'])} ИЗ 100</span></div></div>
+          ${hasNext ? `<button class="button button-primary button-full" id="resultNext">${icon('arrow')}Дальше</button>` : `<p class="rank-summary">Вы прошли все 100 уровней. Легенда зигзага!</p>`}
+          <button class="button button-secondary button-full result-share" id="resultLevels">${icon('trophy')}Все уровни</button>
+          ${!state.noAds ? `<button class="button button-subtle button-full" id="resultNoAds">Убрать рекламу</button>` : ''}`, true);
+        if ($('resultNext')) $('resultNext').onclick = goNext;
+        $('resultLevels').onclick = showLevels;
+        if ($('resultNoAds')) $('resultNoAds').onclick = showNoAds;
       }
 
-      function todayLeaders() {
-        const entries = state.friends.filter((friend) => friend.d === today && friend.done && friend.id !== state.profile.id).map((friend) => ({ id: friend.id, name: friend.n, seconds: friend.t, hints: friend.h, self: false }));
-        if (game.completed) entries.push({ id: state.profile.id, name: state.profile.name || 'Вы', seconds: Math.ceil(game.seconds), hints: game.hints, self: true });
-        return entries.sort((a, b) => a.seconds - b.seconds || a.hints - b.hints || Number(b.self) - Number(a.self) || a.name.localeCompare(b.name, 'ru'));
+      function unlockedMax() {
+        return Math.min(100, Math.max(state.current, ...Object.keys(state.done).map(Number), 1));
       }
 
-      function showFriends() {
-        const entries = todayLeaders();
-        const friendCount = entries.filter((entry) => !entry.self).length;
-        const me = entries.find((entry) => entry.self);
-        const rank = me ? 1 + entries.filter((entry) => entry.seconds < me.seconds || (entry.seconds === me.seconds && entry.hints < me.hints)).length : 0;
-        let leaderHTML = '';
-        if (entries.length) {
-          leaderHTML = `<div class="leader-header" aria-hidden="true"><span>#</span><span>ИГРОК</span><span>ВРЕМЯ</span><span>ПОДСК.</span></div><ol aria-label="Рейтинг друзей за сегодня" style="list-style:none;padding:0;margin:0">${entries.map((entry) => {
-            const place = 1 + entries.filter((other) => other.seconds < entry.seconds || (other.seconds === entry.seconds && other.hints < entry.hints)).length;
-            return `<li class="leader-row${entry.self ? ' self' : ''}"><span class="leader-place">${place}</span><span class="leader-name"><span class="leader-avatar" aria-hidden="true">${escapeHTML(entry.name.slice(0, 1).toUpperCase())}</span><span class="leader-name-text">${escapeHTML(entry.name)}${entry.self && state.profile.name ? ' (вы)' : ''}</span></span><span class="leader-time">${formatTime(entry.seconds)}</span><span class="leader-hints" aria-label="Подсказок: ${entry.hints}">${entry.hints}</span></li>`;
-          }).join('')}</ol>`;
-        } else leaderHTML = `<div class="friend-empty">${icon('users')}<strong>Хорошая компания начинается с вас</strong><p>Пригласите друзей, пройдите задачу<br>и обменяйтесь результатами.</p></div>`;
-        openDialog('friends', `
-          <div class="modal-eyebrow">ДРУЗЬЯ / ЗАДАЧА #${puzzleNumber()}</div>
-          <h2 class="modal-title" id="modalTitle" tabindex="-1">Вместе интереснее.</h2>
-          <p class="modal-description">Одна задача. Немного дружеского азарта.</p>
-          ${me ? `<div class="rank-summary">${friendCount ? `Вы на ${rank}-м месте среди ${entries.length} ${plural(entries.length, ['игрока', 'игроков', 'игроков'])}. ${rank === 1 ? 'Отличный путь!' : 'Каждая маленькая победа важна.'}` : 'Ваш результат уже здесь. Осталось позвать друзей.'}</div>` : ''}
-          ${leaderHTML}
-          ${!friendCount && me ? '<p class="field-help">Пока в рейтинге только вы. Добавьте результаты друзей, чтобы сравнить время.</p>' : ''}
-          <form id="profileForm"><label class="field-label" for="profileName">Ваше имя для друзей</label><div class="inline-field"><input class="field" id="profileName" placeholder="Например, Саша" maxlength="24" autocomplete="nickname" value="${escapeHTML(state.profile.name)}"><button class="button button-secondary" type="submit">Сохранить</button></div></form>
-          <button class="button button-primary button-full friend-actions" id="inviteFriends">${icon('share')}${vkMini.active ? 'Позвать друзей в VK' : 'Пригласить друзей'}</button>
-          ${vkMini.active ? `<button class="button button-secondary button-full calendar-button" id="vkLeaderboard">${icon('trophy')}Таблица результатов VK</button>` : ''}
-          <details class="import-section" id="importSection"><summary>Добавить результат друга</summary><label class="sr-only" for="friendCode">Код или ссылка с результатом друга</label><textarea class="field" id="friendCode" rows="3" maxlength="10000" placeholder="Вставьте код SHAG1-... или старый ZIP1-..." spellcheck="false"></textarea><button class="button button-secondary button-full" id="importFriend">Добавить в рейтинг</button><p id="importStatus" class="form-status" role="status" hidden></p></details>
-          <p class="modal-small">Рейтинг по времени, при равенстве учитываем подсказки. Здесь только реальные присланные результаты за сегодня. Данные хранятся в этом браузере, без автоматической синхронизации.</p>`);
-        $('profileForm').onsubmit = (event) => {
-          event.preventDefault();
-          const name = $('profileName').value.replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, 24);
-          if (!name) { $('profileName').focus(); showToast('Введите имя, чтобы друзья вас узнали.'); return; }
-          state.profile.name = name;
-          persist();
-          showFriends();
-          showToast('Имя сохранено.');
-        };
-        $('inviteFriends').onclick = () => { if (vkMini.active) showVKInvite(); else showShare(); };
-        if ($('vkLeaderboard')) $('vkLeaderboard').onclick = showVKLeaderboard;
-        $('importFriend').onclick = () => {
-          try {
-            const packet = readPacket($('friendCode').value);
-            if (packet.id === state.profile.id) throw new Error('Это ваш результат. Попросите друга прислать свой код.');
-            if (!packet.done) throw new Error('Это приглашение, а не результат. Другу нужно сначала пройти задачу.');
-            addFriend(packet);
-            showFriends();
-            showToast(`Результат ${packet.n} за ${displayDate(packet.d)} добавлен.`);
-          } catch (error) { setFormStatus('importStatus', error.message); }
-        };
+      function showLevels() {
+        const max = unlockedMax();
+        openDialog('levels', `
+          <div class="modal-eyebrow">ЗИГЗАГ / 100 УРОВНЕЙ</div>
+          <h2 class="modal-title" id="modalTitle" tabindex="-1">Выберите уровень.</h2>
+          <p class="modal-description">Поле растёт: 4 на 4 в начале, 7 на 7 в конце.</p>
+          <div class="level-grid">${LEVELS.map((l) => {
+            const done = !!state.done[l.id];
+            const locked = l.id > max;
+            return `<button class="level-cell${done ? ' done' : ''}${l.id === levelId ? ' current' : ''}" data-level="${l.id}" ${locked ? 'disabled title="Пройдите предыдущие уровни"' : ''} aria-label="Уровень ${l.id}${done ? ', пройден' : ''}${locked ? ', закрыт' : ''}">${done ? '✓ ' : ''}${l.id}</button>`;
+          }).join('')}</div>
+          ${!state.noAds ? `<button class="button button-subtle button-full" id="levelsNoAds">Убрать рекламу</button>` : ''}
+          <p class="modal-small">Прогресс хранится в браузере и в облаке.</p>`);
+        $('modalContent').querySelectorAll('[data-level]').forEach((button) => {
+          button.onclick = () => { dialog.close(); loadLevel(Number(button.dataset.level)); };
+        });
+        if ($('levelsNoAds')) $('levelsNoAds').onclick = showNoAds;
       }
 
-      function makePacket() {
-        return { v: 1, id: state.profile.id, n: state.profile.name || 'Игрок', d: today, done: game.completed, t: game.completed ? Math.ceil(game.seconds) : Math.floor(game.seconds), h: game.hints, s: streak(), p: game.completed ? [...game.path] : [], f: game.path.length };
+      function showNoAds() {
+        openDialog('noads', `
+          <div class="modal-symbol">${icon('close')}</div>
+          <div class="modal-eyebrow">БЕЗ РЕКЛАМЫ</div>
+          <h2 class="modal-title" id="modalTitle" tabindex="-1">Играть чисто.</h2>
+          <p class="modal-description">Одна покупка — и больше никакой рекламы: ни роликов между уровнями, ни ожидания ради подсказки. Подсказки после этого бесплатные.</p>
+          <div class="button-row"><button class="button button-secondary" id="cancelNoAds">Пока нет</button><button class="button button-primary" id="confirmNoAds">Убрать рекламу</button></div>
+          <p class="modal-small">Оплата проходит на площадке Пикабу Игры.</p>`);
+        $('cancelNoAds').onclick = () => dialog.close();
+        $('confirmNoAds').onclick = pkbBuyNoAds;
       }
 
-      function encodePacket(packet) {
-        const bytes = new TextEncoder().encode(JSON.stringify(packet));
-        let binary = '';
-        bytes.forEach((byte) => { binary += String.fromCharCode(byte); });
-        return `${SHARE_PREFIX}${btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')}`;
-      }
-
-      function validatePacket(packet) {
-        const invalid = () => { throw new Error('Этот результат повреждён или создан другой версией игры.'); };
-        if (!packet || typeof packet !== 'object' || packet.v !== 1) invalid();
-        if (typeof packet.id !== 'string' || !/^[\w-]{6,64}$/.test(packet.id)) invalid();
-        if (typeof packet.n !== 'string' || !packet.n.trim() || packet.n.length > 24 || /[\u0000-\u001f\u007f]/.test(packet.n)) invalid();
-        if (typeof packet.d !== 'string' || !/^20\d{2}-\d{2}-\d{2}$/.test(packet.d) || dayKey(new Date(`${packet.d}T12:00:00`)) !== packet.d) invalid();
-        if (typeof packet.done !== 'boolean' || !Number.isInteger(packet.t) || packet.t < (packet.done ? 1 : 0) || packet.t > 604800) invalid();
-        if (!Number.isInteger(packet.h) || packet.h < 0 || packet.h > 9999 || !Number.isInteger(packet.s) || packet.s < 0 || packet.s > 400) invalid();
-        if (!Number.isInteger(packet.f) || packet.f < 0 || packet.f > CELL_COUNT) invalid();
-        if (packet.done && (packet.f !== CELL_COUNT || !validPath(packet.p, makePuzzle(packet.d), true))) invalid();
-        if (!packet.done && (!Array.isArray(packet.p) || packet.p.length !== 0 || packet.f >= CELL_COUNT)) invalid();
-        return packet;
-      }
-
-      function readPacket(text) {
-        if (typeof text !== 'string' || text.length > 10000) throw new Error('Код слишком длинный. Скопируйте только результат друга.');
-        let decoded = text;
-        try { decoded = decodeURIComponent(text); } catch { /* A pasted message does not have to be URL encoded. */ }
-        const match = decoded.match(/(?:SHAG1|ZIP1)-[A-Za-z0-9_-]+/);
-        if (!match) throw new Error('Не нашли код. Вставьте результат SHAG1-... или старый код ZIP1-...');
-        try {
-          const base64 = match[0].slice(5).replace(/-/g, '+').replace(/_/g, '/');
-          const binary = atob(base64 + '='.repeat((4 - base64.length % 4) % 4));
-          const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
-          return validatePacket(JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes)));
-        } catch { throw new Error('Не получилось прочитать результат. Попросите друга скопировать код целиком.'); }
-      }
-
-      function addFriend(packet) {
-        validatePacket(packet);
-        if (!packet.done || packet.id === state.profile.id) return;
-        state.friends = state.friends.filter((friend) => !(friend.id === packet.id && friend.d === packet.d));
-        state.friends.push(packet);
-        state.friends = state.friends.slice(-300);
-        persist();
-      }
-
-      function publicBase() {
-        if (!['http:', 'https:'].includes(location.protocol) || ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname)) return '';
-        const url = new URL(location.href);
-        url.hash = '';
-        url.searchParams.delete('selftest');
-        return url.href;
-      }
-
-      function vkShareLink() {
-        if (vkMini.active) return `${location.origin}${location.pathname}${location.search}#shag=${encodePacket(makePacket())}`;
-        return publicBase() ? `${publicBase()}#shag=${encodePacket(makePacket())}` : '';
-      }
-
-      function shareData() {
-        const token = encodePacket(makePacket());
-        const url = vkMini.active ? `${location.origin}${location.pathname}${location.search}#shag=${token}` : publicBase() ? `${publicBase()}#shag=${token}` : '';
-        const count = streak();
-        const short = game.completed
-          ? `Шаг #${puzzleNumber()} | ${formatTime(game.seconds)}\nВсе 36 клеток. ${game.hints ? `Подсказок: ${game.hints}.` : 'Без подсказок.'}\nСерия: ${count} ${plural(count, ['день', 'дня', 'дней'])}. Сможете быстрее?`
-          : `Шаг #${puzzleNumber()} | ${game.path.length} из 36 клеток\nОдна линия. Маленькая победа каждый день.\nНайдём свой путь вместе?`;
-        const text = `${short}\n\n${url || `Откройте такой же HTML-файл Шаг и добавьте мой код в разделе «Друзья»:\n${token}`}`;
-        return { token, url, short, text };
-      }
-
-      async function shareInVK(share = shareData()) {
-        try {
-          await vkSend('VKWebAppShare', { link: share.url || vkShareLink(), text: share.short });
-          showToast('Окно VK для отправки открылось.');
-        } catch {
-          if (share.url) window.open(`https://vk.com/share.php?${new URLSearchParams({ url: share.url, title: share.short, noparse: 'true' })}`, '_blank', 'noopener,noreferrer');
-          else await copyWithFeedback(share.text, 'Ссылка недоступна. Текст результата скопирован.');
-        }
-      }
-
-      async function showVKInvite() {
-        try {
-          const result = await vkSend('VKWebAppShowInviteBox', { requestKey: `shag-${today}`, message: 'Сыграем в Шаг? Найдите свой путь в ежедневной головоломке.' });
-          if (result?.success) showToast('Приглашение отправлено друзьям в VK.');
-        } catch { showShare(); }
-      }
-
-      async function showVKLeaderboard() {
-        try {
-          const result = await vkSend('VKWebAppShowLeaderBoardBox', { global: 0 });
-          if (result?.success) showToast('Таблица результатов VK открыта.');
-        } catch { showToast('Таблица VK пока недоступна. Проверьте, что она включена в настройках приложения.'); }
-      }
-
-      function showShare() {
+      function loadLevel(id) {
+        const def = levelDef(id);
+        if (!def) return;
         syncClock();
-        const share = shareData();
-        const count = streak();
-        const telegram = share.url ? `https://t.me/share/url?${new URLSearchParams({ url: share.url, text: share.short })}` : '';
-         const vk = share.url ? `https://vk.com/share.php?${new URLSearchParams({ url: share.url, title: share.short, noparse: 'true' })}` : '';
-        openDialog('share', `
-          <div class="modal-eyebrow">ЛУЧШЕ ВМЕСТЕ</div>
-          <h2 class="modal-title" id="modalTitle" tabindex="-1">Хорошим стоит<br>поделиться.</h2>
-          <p class="modal-description">${game.completed ? 'Отправьте друзьям свою маленькую победу. Без спойлеров и готового пути на картинке.' : 'Позовите друзей сделать паузу и найти свой путь.'}</p>
-          <div class="share-preview"><div class="share-preview-top"><span class="share-preview-brand">шаг<span class="brand-period">.</span></span><span class="share-preview-date">#${puzzleNumber()} / ${displayDate()}</span></div><p class="share-preview-title">${game.completed ? 'Всё сошлось.' : 'Найдём свой путь?'}</p><p class="share-preview-stats">${game.completed ? `${formatTime(game.seconds)} &nbsp; / &nbsp; ${game.hints ? `${game.hints} ${plural(game.hints, ['подсказка', 'подсказки', 'подсказок'])}` : 'Без подсказок'}` : `${game.path.length} из 36 клеток &nbsp; / &nbsp; В процессе`}<br>Серия: ${count} ${plural(count, ['день', 'дня', 'дней'])}</p></div>
-          <div class="share-buttons">${share.url ? `<a class="button button-secondary" href="${escapeHTML(telegram)}" target="_blank" rel="noopener noreferrer">${icon('telegram')}Telegram</a>${vkMini.active ? `<button class="button button-secondary" id="vkNativeShare"><span style="font-weight:800;font-size:15px;letter-spacing:-1px" aria-hidden="true">vk</span>ВКонтакте</button>` : `<a class="button button-secondary" href="${escapeHTML(vk)}" target="_blank" rel="noopener noreferrer"><span style="font-weight:800;font-size:15px;letter-spacing:-1px" aria-hidden="true">vk</span>ВКонтакте</a>`}` : `<button class="button button-secondary" disabled title="Нужен адрес размещённой игры">${icon('telegram')}Telegram</button><button class="button button-secondary" disabled title="Нужен адрес размещённой игры">ВКонтакте</button>`}<button class="button button-secondary" id="copyResult" aria-label="Скопировать результат" title="Скопировать результат">${icon('copy')}</button></div>
-          <div class="share-more"><button class="button button-subtle" id="nativeShare">${icon('share')}${vkMini.active ? 'Поделиться через VK' : navigator.share ? 'Другие приложения' : 'Скопировать текст'}</button><button class="button button-subtle" id="downloadImage">${icon('download')}Скачать картинку</button></div>
-          <div class="share-code"><p>${game.completed ? 'Чтобы сравнить время, друг может открыть ссылку или добавить ваш код в разделе «Друзья».' : 'Рейтинг откроется после прохождения. Пока можно отправить приглашение.'}</p><button class="button button-secondary" id="copyCode">${icon('copy')}${game.completed ? 'Скопировать код результата' : 'Скопировать код приглашения'}</button></div>
-          ${!share.url ? '<p class="modal-small">Вы открыли локальный файл. Поделитесь текстом, кодом или картинкой и отправьте другу этот HTML. Прямые кнопки соцсетей доступны, когда игра размещена на сайте.</p>' : ''}`);
-        $('copyResult').onclick = () => copyWithFeedback(share.text, 'Результат скопирован. Отправьте его друзьям.');
-        $('copyCode').onclick = () => copyWithFeedback(share.token, 'Код скопирован. Его можно добавить в разделе «Друзья».');
-        if ($('vkNativeShare')) $('vkNativeShare').onclick = () => shareInVK(share);
-        $('nativeShare').onclick = async () => {
-          if (vkMini.active) { await shareInVK(share); return; }
-          if (!navigator.share) { await copyWithFeedback(share.text, 'Текст скопирован.'); return; }
-          try { await navigator.share({ title: 'Шаг: маленькая победа каждый день', text: share.short + (share.url ? '' : `\n\n${share.token}`), ...(share.url ? { url: share.url } : {}) }); }
-          catch (error) { if (error.name !== 'AbortError') await copyWithFeedback(share.text, 'Системная отправка недоступна. Результат скопирован.'); }
-        };
-        $('downloadImage').onclick = downloadProgressImage;
-      }
-
-      async function copyText(text) {
-        if (vkMini.active) {
-          try {
-            const response = await vkSend('VKWebAppCopyText', { text });
-            if (response?.result || response?.status === 'success') return true;
-          } catch { /* Fall through to the browser clipboard methods. */ }
-        }
-        try {
-          if (navigator.clipboard && window.isSecureContext) { await navigator.clipboard.writeText(text); return true; }
-        } catch { /* Clipboard access can be denied in embedded or local documents. */ }
-        const active = document.activeElement;
-        const textarea = document.createElement('textarea');
-        textarea.value = text;
-        textarea.setAttribute('aria-label', 'Текст для копирования');
-        textarea.style.cssText = 'position:fixed;left:0;top:0;width:1px;height:1px;opacity:0;font-size:16px;';
-        (dialog.open ? $('modalContent') : document.body).append(textarea);
-        textarea.focus();
-        textarea.select();
-        textarea.setSelectionRange(0, text.length);
-        let copied = false;
-        try { copied = document.execCommand('copy'); } catch { copied = false; }
-        textarea.remove();
-        active?.focus?.({ preventScroll: true });
-        return copied;
-      }
-
-      async function copyWithFeedback(text, message) {
-        if (await copyText(text)) showToast(message);
-        else {
-          openDialog('copy', `<h2 class="modal-title" id="modalTitle" tabindex="-1">Скопируйте результат</h2><p class="modal-description">Браузер ограничил буфер обмена. Выделите текст и скопируйте его вручную.</p><label class="sr-only" for="manualCopy">Текст результата</label><textarea class="field" id="manualCopy" rows="8" readonly></textarea><button class="button button-primary button-full" id="manualCopyDone" style="margin-top:16px">Готово</button>`);
-          $('manualCopy').value = text;
-          $('manualCopy').focus();
-          $('manualCopy').select();
-          $('manualCopyDone').onclick = () => dialog.close();
-        }
-      }
-
-      function downloadBlob(blob, filename) {
-        const url = URL.createObjectURL(blob);
-        const anchor = document.createElement('a');
-        anchor.href = url;
-        anchor.download = filename;
-        document.body.append(anchor);
-        anchor.click();
-        anchor.remove();
-        setTimeout(() => URL.revokeObjectURL(url), 30000);
-      }
-
-      async function downloadProgressImage() {
-        const canvas = document.createElement('canvas');
-        canvas.width = 900;
-        canvas.height = 1100;
-        const context = canvas.getContext('2d');
-        if (!context) { showToast('Браузер не поддерживает создание картинки. Скопируйте текст результата.'); return; }
-        context.fillStyle = '#f7f7f2';
-        context.fillRect(0, 0, 900, 1100);
-        context.fillStyle = '#292a27';
-        context.font = '800 76px "Golos Text", sans-serif';
-        context.fillText('шаг', 72, 127);
-        context.fillStyle = '#f5753c';
-        context.fillText('.', 182, 127);
-        context.textAlign = 'right';
-        context.fillStyle = '#929987';
-        context.font = '20px "Golos Text", sans-serif';
-        context.fillText(`#${puzzleNumber()} / ${displayDate()}`, 824, 114);
-        const x = 290, y = 204, step = 80;
-        context.fillStyle = 'white';
-        context.fillRect(x, y, step * 4, step * 4);
-        context.strokeStyle = '#dce2d2';
-        context.lineWidth = 2;
-        for (let i = 0; i <= 4; i++) {
-          context.beginPath(); context.moveTo(x + i * step, y); context.lineTo(x + i * step, y + 4 * step); context.stroke();
-          context.beginPath(); context.moveTo(x, y + i * step); context.lineTo(x + 4 * step, y + i * step); context.stroke();
-        }
-        const route = [0, 4, 8, 12, 13, 9, 5, 1, 2, 6, 10, 14, 15, 11, 7, 3];
-        const gradient = context.createLinearGradient(x, y, x + 320, y + 320);
-        gradient.addColorStop(0, '#ffb16c'); gradient.addColorStop(1, '#f5753c');
-        context.strokeStyle = gradient; context.lineWidth = 32; context.lineCap = 'round'; context.lineJoin = 'round';
-        context.beginPath();
-        route.forEach((cell, index) => { const px = x + (cell % 4 + .5) * step; const py = y + (Math.floor(cell / 4) + .5) * step; if (index) context.lineTo(px, py); else context.moveTo(px, py); });
-        context.stroke();
-        context.textAlign = 'center';
-        context.fillStyle = '#292a27';
-        context.font = '600 60px "Golos Text", sans-serif';
-        context.fillText(game.completed ? 'Всё сошлось.' : 'Нахожу свой путь.', 450, 622);
-        context.fillStyle = '#939c85';
-        context.font = '22px "Golos Text", sans-serif';
-        context.fillText(game.completed ? 'Ещё одна маленькая победа.' : 'Ежедневная пауза с Шаг.', 450, 671);
-        context.strokeStyle = '#dce2d2'; context.lineWidth = 1.5;
-        context.beginPath(); context.moveTo(74, 716); context.lineTo(826, 716); context.stroke();
-        context.fillStyle = '#292a27'; context.font = '500 47px "Golos Text", sans-serif';
-        context.fillText(game.completed ? formatTime(game.seconds) : `${game.path.length} / 36`, 270, 796);
-        context.fillText(`${streak()} ${plural(streak(), ['день', 'дня', 'дней'])}`, 640, 796);
-        context.fillStyle = '#929d83'; context.font = '17px "Golos Text", sans-serif';
-        context.fillText(game.completed ? 'ВРЕМЯ' : 'КЛЕТОК', 270, 833);
-        context.fillText('СЕРИЯ', 640, 833);
-        context.fillStyle = '#969f89'; context.font = '19px "Golos Text", sans-serif';
-        context.fillText(game.hints ? `Подсказок: ${game.hints}` : game.completed ? 'Без подсказок' : 'Присоединяйтесь!', 450, 904);
-        context.beginPath(); context.moveTo(74, 966); context.lineTo(826, 966); context.stroke();
-        context.font = '19px "Golos Text", sans-serif';
-        context.fillText('Одна линия. Маленькая победа каждый день.', 450, 1024);
-        try {
-          const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
-          if (!blob) throw new Error('No image');
-          downloadBlob(blob, `shag-${today}.png`);
-          showToast('Картинка скачана. Можно опубликовать её в соцсетях.');
-        } catch { showToast('Не удалось скачать картинку. Попробуйте скопировать текст.'); }
-      }
-
-      function validTime(time) { return typeof time === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(time); }
-
-      function setFormStatus(id, text, success = false) {
-        const target = $(id);
-        if (!target) { showToast(text); return; }
-        target.hidden = false;
-        target.textContent = text;
-        target.classList.toggle('success', success);
-      }
-
-      function showReminder() {
-        const vkSupported = vkMini.active;
-        const browserSupported = 'Notification' in window && window.isSecureContext;
-        const supported = vkSupported || browserSupported;
-        const enabled = state.reminder.enabled && ((state.reminder.platform === 'vk' && vkSupported) || (state.reminder.platform !== 'vk' && browserSupported && Notification.permission === 'granted'));
-        openDialog('reminder', `
-          <div class="modal-symbol">${icon('bell')}</div>
-          <h2 class="modal-title" id="modalTitle" tabindex="-1">Не теряйте<br>свой ритм.</h2>
-          <p class="modal-description">Пара минут для себя. Выберите время, когда удобно вернуться к новой головоломке.</p>
-          <div class="reminder-time"><label for="reminderTime">Каждый день<small>По вашему местному времени</small></label><input class="field time-field" id="reminderTime" type="time" required value="${state.reminder.time}" aria-label="Время ежедневного напоминания"></div>
-          <button class="button button-primary button-full" id="enableReminder" ${supported ? '' : 'disabled'}>${icon('bell')}${enabled ? 'Сохранить время' : vkSupported ? 'Разрешить уведомления VK' : 'Включить уведомления'}</button>
-          <button class="button button-secondary button-full calendar-button" id="calendarReminder">${icon('calendar')}Добавить в календарь</button>
-          ${enabled ? '<button class="button button-subtle button-full" id="disableReminder">Выключить уведомления</button>' : ''}
-          <p class="form-status" id="reminderStatus" role="status" ${supported ? 'hidden' : ''}>${supported ? '' : 'Уведомления недоступны. Добавьте напоминание в календарь.'}</p>
-          <div class="reminder-limit">${icon('info')}<span>${vkSupported ? 'VK запомнит разрешение на уведомления. Для регулярной отправки напоминаний после закрытия приложения понадобится серверная часть сообщества.' : 'В одном HTML уведомления работают только с открытой вкладкой. Для закрытого браузера скачайте файл календаря и подтвердите его добавление.'}</span></div>
-          <p class="modal-small" style="margin-top:0">Первое напоминание завтра. В браузерном fallback уведомление приходит только в те дни, когда вы ещё не прошли игру.</p>`);
-        $('enableReminder').onclick = enableReminder;
-        $('calendarReminder').onclick = downloadCalendar;
-        if ($('disableReminder')) $('disableReminder').onclick = () => {
-          state.reminder.enabled = false;
-          persist();
-          renderStreak();
-          showReminder();
-          showToast('Уведомления выключены. Событие календаря удаляется в самом календаре.');
-        };
-      }
-
-      async function enableReminder() {
-        const time = $('reminderTime').value;
-        if (!validTime(time)) { setFormStatus('reminderStatus', 'Выберите время напоминания.'); return; }
-        const button = $('enableReminder');
-        button.disabled = true;
-        try {
-          if (vkMini.active) {
-            const permission = await vkSend('VKWebAppAllowNotifications');
-            if (!permission?.result) {
-              setFormStatus('reminderStatus', 'VK не выдал разрешение на уведомления. Можно использовать календарь.');
-              return;
-            }
-            state.reminder.enabled = true;
-            state.reminder.platform = 'vk';
-            state.reminder.time = time;
-            persist();
-            renderStreak();
-            showReminder();
-            showToast(`Разрешение VK сохранено для ${time}.`);
-            return;
-          }
-          if (!('Notification' in window) || !window.isSecureContext) { setFormStatus('reminderStatus', 'Нужен поддерживаемый браузер и безопасный адрес HTTPS. Используйте календарь.'); return; }
-          const permission = Notification.permission === 'granted' ? 'granted' : await Notification.requestPermission();
-          if (permission !== 'granted') {
-            setFormStatus('reminderStatus', permission === 'denied' ? 'Браузер заблокировал уведомления. Измените разрешение в настройках сайта или используйте календарь.' : 'Разрешение не получено. Можно выбрать напоминание в календаре.');
-            return;
-          }
-          if (!state.reminder.enabled) {
-            const notification = new Notification('Шаг: ваш ритм сохранён', { body: `Ждём вас завтра в ${time}. Оставьте вкладку открытой для уведомлений.`, tag: 'shag-reminder-setup', silent: true });
-            notification.onclick = () => { window.focus(); notification.close(); };
-          }
-          state.reminder.enabled = true;
-          state.reminder.platform = 'browser';
-          state.reminder.time = time;
-          state.reminder.lastSent = today;
-          persist();
-          renderStreak();
-          if (modalKind === 'reminder' && dialog.open) showReminder();
-          showToast(`Напоминание включено на ${time}. Первое уведомление завтра.`);
-        } catch {
-          state.reminder.enabled = false;
-          persist();
-          renderStreak();
-          setFormStatus('reminderStatus', 'Этот браузер не умеет отправлять уведомления из HTML-файла. Напоминание календаря будет работать надёжнее.');
-        } finally { if (button.isConnected) button.disabled = false; }
-      }
-
-      function checkReminder() {
-        if (!state.reminder.enabled) return;
-        if (state.reminder.platform === 'vk') return;
-        if (!('Notification' in window) || Notification.permission !== 'granted') {
-          state.reminder.enabled = false;
-          persist();
-          renderStreak();
-          return;
-        }
-        const now = new Date();
-        const currentDay = dayKey(now);
-        if (state.days[currentDay]?.completed || state.reminder.lastSent === currentDay) return;
-        const [hours, minutes] = state.reminder.time.split(':').map(Number);
-        if (now.getHours() * 60 + now.getMinutes() < hours * 60 + minutes) return;
-        try {
-          const notification = new Notification('Время для маленькой победы', { body: streak() ? 'Новая головоломка Шаг ждёт. Продлите свою серию!' : 'Соедините числа, найдите свой путь и начните хорошую серию.', tag: `shag-daily-${currentDay}` });
-          notification.onclick = () => { window.focus(); notification.close(); };
-          state.reminder.lastSent = currentDay;
-          persist();
-        } catch {
-          state.reminder.enabled = false;
-          persist();
-          renderStreak();
-          showToast('Браузер не отправил уведомление. В настройках доступно напоминание календаря.');
-        }
-      }
-
-      function calendarEscape(value) { return String(value).replace(/\\/g, '\\\\').replace(/\r?\n/g, '\\n').replace(/,/g, '\\,').replace(/;/g, '\\;'); }
-      function calendarStamp(date, utc = false) {
-        if (utc) return date.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z');
-        return `${dayKey(date).replace(/-/g, '')}T${pad(date.getHours())}${pad(date.getMinutes())}${pad(date.getSeconds())}`;
-      }
-      function foldCalendarLine(line) {
-        const encoder = new TextEncoder();
-        const parts = [];
-        let part = '', size = 0;
-        for (const character of line) {
-          const bytes = encoder.encode(character).length;
-          if (size + bytes > 73) { parts.push(part); part = ' '; size = 1; }
-          part += character;
-          size += bytes;
-        }
-        parts.push(part);
-        return parts.join('\r\n');
-      }
-
-      function downloadCalendar() {
-        const time = $('reminderTime').value;
-        if (!validTime(time)) { setFormStatus('reminderStatus', 'Сначала выберите время.'); return; }
-        const [hours, minutes] = time.split(':').map(Number);
-        const now = new Date();
-        const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, hours, minutes);
-        const end = new Date(start.getTime() + 5 * 60000);
-        // Floating local calendar times keep the chosen wall-clock hour across daylight-saving changes.
-        const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Shag Daily//Daily Reminder//RU', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH', 'BEGIN:VEVENT', `UID:shag-${state.profile.id}@local.game`, `DTSTAMP:${calendarStamp(now, true)}`, `DTSTART:${calendarStamp(start)}`, `DTEND:${calendarStamp(end)}`, 'RRULE:FREQ=DAILY', `SUMMARY:${calendarEscape('Шаг: время для маленькой победы')}`, `DESCRIPTION:${calendarEscape(`Одна линия. Маленькая победа каждый день. Откройте Шаг и продлите свою серию.\n${publicBase() || 'Откройте сохранённый HTML-файл игры Шаг.'}`)}`, 'BEGIN:VALARM', 'TRIGGER:PT0M', 'ACTION:DISPLAY', `DESCRIPTION:${calendarEscape('Новая головоломка Шаг ждёт вас.')}`, 'END:VALARM', 'END:VEVENT', 'END:VCALENDAR'];
-        downloadBlob(new Blob([lines.map(foldCalendarLine).join('\r\n') + '\r\n'], { type: 'text/calendar;charset=utf-8' }), 'shag-reminder.ics');
-        state.reminder.time = time;
-        state.reminder.calendarDownloaded = true;
         persist();
-        renderStreak();
-        setFormStatus('reminderStatus', 'Файл календаря скачан. Откройте его и подтвердите добавление события и уведомлений в своём календаре.', true);
+        clearTimeout(winTimeout);
+        pendingResult = false;
+        stopPointer();
+        levelId = id;
+        state.current = Math.max(state.current, Math.min(id, unlockedMax()));
+        puzzle = buildPuzzle(def);
+        game = (state.inprogress?.id === id) ? restoreGame(state.inprogress, puzzle) : restoreGame(null, puzzle);
+        paused = game.path.length > 0 && !game.completed;
+        focusedCell = game.path.at(-1) ?? puzzle.start;
+        clockRunning = false;
+        lastClock = performance.now();
+        if (dialog.open) dialog.close();
+        buildBoard();
+        render();
+        syncClock();
+        persist();
+        window.scrollTo({ top: 0, behavior: 'auto' });
+      }
+
+      async function goNext() {
+        if (!game.completed || levelId >= 100) { showLevels(); return; }
+        if (dialog.open) dialog.close();
+        if (state.fsSince >= FULLSCREEN_EVERY && !state.noAds) {
+          state.fsSince = 0;
+          persist();
+          await pkbFullscreen();
+        }
+        loadLevel(levelId + 1);
       }
 
       function showTutorial(step = 0) {
@@ -1773,14 +1411,14 @@
           <h3 class="tutorial-step-title">${labels[step]}</h3><p class="tutorial-step-text">${descriptions[step]}</p>
           <div class="tutorial-pagination" aria-label="Шаги инструкции">${[0, 1, 2].map((index) => `<button class="${step === index ? 'active' : ''}" data-tutorial-step="${index}" aria-label="Шаг ${index + 1}" ${step === index ? 'aria-current="step"' : ''}></button>`).join('')}</div>
           <div class="button-row"><button class="button button-secondary" id="replayTutorial">${icon('reset')}Ещё раз</button><button class="button button-primary" id="nextTutorial">${step === 2 ? 'Всё понятно' : 'Дальше'}${icon('arrow')}</button></div>
-          <p class="modal-small">Это только пример. Ваша задача дня остаётся на месте.</p>`, true);
+          <p class="modal-small">Это только пример. Ваш уровень остаётся на месте.</p>`, true);
         $('replayTutorial').onclick = () => showTutorial(step);
-        $('nextTutorial').onclick = () => { if (step < 2) showTutorial(step + 1); else { dialog.close(); if (!paused) focusCell(game.path.at(-1) ?? puzzle.solution[0]); } };
+        $('nextTutorial').onclick = () => { if (step < 2) showTutorial(step + 1); else { dialog.close(); if (!paused) focusCell(game.path.at(-1) ?? puzzle.start); } };
         $('modalContent').querySelectorAll('[data-tutorial-step]').forEach((button) => { button.onclick = () => showTutorial(Number(button.dataset.tutorialStep)); });
       }
 
       function showAbout() {
-        openDialog('about', `<div class="modal-eyebrow">НЕМНОГО ВРЕМЕНИ ДЛЯ СЕБЯ</div><h2 class="modal-title" id="modalTitle" tabindex="-1">Большое в маленьком.</h2><div class="about-copy"><p>Шаг помогает ненадолго переключиться. Соедините числа от 1 до 8 по порядку одной линией и заполните все 36 клеток.</p><p>Одна новая задача в день, в полночь по местному времени. Попыток сколько угодно, но завершённую задачу нельзя пройти повторно. Прогресс, серия и результаты друзей сохраняются только в этом браузере. Очистка данных браузера удалит их.</p><p>Клавиатура: <kbd>Enter</kbd> или <kbd>Пробел</kbd> для начала, стрелки для движения, <kbd>Backspace</kbd> для отмены и <kbd>P</kbd> для паузы. Мышью и пальцем можно тянуть линию или нажимать на клетки.</p><p>Игра работает как один HTML-файл и адаптируется под VK Mini Apps через VK Bridge: профиль, нативная отправка, приглашения, таблица результатов и разрешение на уведомления. Полноценная серверная доставка уведомлений и общий рейтинг требуют backend.</p><p>Независимая реализация, вдохновлённая <a href="https://www.linkedin.com/games/zip/" target="_blank" rel="noopener noreferrer">Zip от LinkedIn</a>. Название, интерфейс и интеграция адаптированы для VK Mini Apps.</p></div><button class="button button-primary button-full" id="aboutDone">Вернуться к своей линии</button>`);
+        openDialog('about', `<div class="modal-eyebrow">НЕМНОГО ВРЕМЕНИ ДЛЯ СЕБЯ</div><h2 class="modal-title" id="modalTitle" tabindex="-1">Большое в маленьком.</h2><div class="about-copy"><p>Зигзаг помогает ненадолго переключиться. Соединяйте числа по порядку одной линией и заполняйте все клетки поля.</p><p>Сто уровней: поле растёт от 4 на 4 до 7 на 7. Попыток сколько угодно. Прогресс хранится в браузере и в облаке.</p><p>Клавиатура: стрелки для движения, <kbd>Backspace</kbd> для отмены и <kbd>P</kbd> для паузы. Мышью и пальцем можно тянуть линию или нажимать на клетки.</p></div><button class="button button-primary button-full" id="aboutDone">Вернуться к своей линии</button>`);
         $('aboutDone').onclick = () => dialog.close();
       }
 
@@ -1803,49 +1441,6 @@
         $('toast').textContent = message;
         $('toast').classList.add('visible');
         toastTimeout = setTimeout(() => $('toast').classList.remove('visible'), 4400);
-      }
-
-      function rollDay() {
-        const current = dayKey();
-        if (current === today) return false;
-        syncClock();
-        persist();
-        clearTimeout(winTimeout);
-        pendingResult = false;
-        stopPointer();
-        today = current;
-        puzzle = makePuzzle(today);
-        game = restoreGame(state.days[today], puzzle);
-        state.days[today] = game;
-        paused = game.path.length > 0 && !game.completed;
-        focusedCell = game.path.at(-1) ?? puzzle.solution[0];
-        clockRunning = false;
-        lastClock = performance.now();
-        if (dialog.open) dialog.close();
-        buildBoard();
-        render();
-        persist();
-        showToast(game.completed ? 'Вы уже прошли эту задачу дня.' : 'Новый день, новая линия. Головоломка уже здесь.');
-        return true;
-      }
-
-      function receiveSharedLink() {
-        if (!location.hash.startsWith('#shag=') && !location.hash.startsWith('#zip=')) return;
-        let packet;
-        try { packet = readPacket(location.hash); }
-        catch (error) { showToast(error.message); clearSharedHash(); return; }
-        clearSharedHash();
-        if (packet.id === state.profile.id) return;
-        openDialog('invitation', `<div class="modal-symbol">${icon('users')}</div><div class="modal-eyebrow">ДРУЖЕСКИЙ ВЫЗОВ</div><h2 class="modal-title" id="modalTitle" tabindex="-1">Сыграем в Шаг?</h2><p class="modal-description">${escapeHTML(packet.n)} ${packet.done ? `прошёл задачу #${puzzleNumber(packet.d)} за ${formatTime(packet.t)} и делится результатом.` : 'приглашает вас найти свой путь в ежедневной головоломке.'}</p>${packet.done ? `<p class="rank-summary">${displayDate(packet.d, true)}. ${packet.h ? `Подсказок: ${packet.h}.` : 'Без подсказок.'}${packet.d !== today ? ' Это другая дата: результат сохранится, но не попадёт в сегодняшний рейтинг.' : ''}</p>` : ''}<button class="button button-primary button-full" id="acceptInvitation">${packet.done ? 'Добавить результат друга' : 'Принять вызов'}${icon('arrow')}</button><p class="modal-small">Никаких регистраций. Пройдите игру и отправьте другу свой результат в ответ.</p>`);
-        $('acceptInvitation').onclick = () => {
-          if (packet.done) { addFriend(packet); showFriends(); showToast('Результат друга добавлен.'); }
-          else { dialog.close(); if (!game.completed && !paused) focusCell(puzzle.solution[0]); }
-        };
-      }
-
-      function clearSharedHash() {
-        try { history.replaceState(null, '', location.pathname + location.search); }
-        catch { /* The invitation is still usable when a file URL disallows history changes. */ }
       }
 
       board.addEventListener('pointerdown', (event) => {
@@ -1897,13 +1492,12 @@
       $('undoButton').onclick = undo;
       $('resetButton').onclick = showReset;
       $('hintButton').onclick = showHint;
-      $('resultButton').onclick = showResult;
-      $('shareButton').onclick = showShare;
-      $('navFriends').onclick = showFriends;
+      $('nextButton').onclick = goNext;
+      $('gotoLevels').onclick = showLevels;
+      $('navLevels').onclick = showLevels;
+      $('levelsButton').onclick = showLevels;
       $('navRules').onclick = () => showTutorial();
       $('demoButton').onclick = () => showTutorial();
-      $('navReminder').onclick = showReminder;
-      $('reminderButton').onclick = showReminder;
       $('aboutButton').onclick = showAbout;
       $('homeLink').onclick = (event) => { event.preventDefault(); window.scrollTo({ top: 0, behavior: reducedMotion ? 'auto' : 'smooth' }); };
       $('howToggle').onclick = () => {
@@ -1919,13 +1513,13 @@
       });
       dialog.addEventListener('close', () => {
         if (dialog.open) return;
-        const returnToBoard = ['hint', 'reset', 'tutorial', 'invitation'].includes(modalKind);
+        const returnToBoard = ['hint', 'reset', 'tutorial', 'levels', 'noads'].includes(modalKind);
         modalKind = '';
         document.body.style.overflow = '';
         syncClock();
         if (paused && !game.completed) $('resumeButton').focus({ preventScroll: true });
-        else if (returnToBoard && !game.completed) focusCell(game.path.at(-1) ?? puzzle.solution[0]);
-        else if (game.completed && modalOrigin?.closest('#board')) $('resultButton').focus({ preventScroll: true });
+        else if (returnToBoard && !game.completed) focusCell(game.path.at(-1) ?? puzzle.start);
+        else if (game.completed && modalOrigin?.closest('#board')) $('nextButton').focus({ preventScroll: true });
         else if (modalOrigin?.isConnected && !modalOrigin.closest('[hidden]') && !modalOrigin.disabled) modalOrigin.focus({ preventScroll: true });
         if (pendingResult && game.completed) setTimeout(() => { if (pendingResult && !dialog.open) showResult(); }, 80);
       });
@@ -1937,32 +1531,32 @@
           syncClock();
           render();
           persist();
-        } else if (!document.hidden) { rollDay(); checkReminder(); }
+        } else if (!document.hidden) { syncClock(); }
       });
       window.addEventListener('pagehide', () => { syncClock(); persist(); });
       window.addEventListener('beforeunload', () => { syncClock(); persist(); });
-      window.addEventListener('hashchange', receiveSharedLink);
       window.addEventListener('storage', (event) => {
         if (event.key !== STORAGE_KEY || !event.newValue) return;
         try {
           const incoming = sanitizeState(JSON.parse(event.newValue));
           if (incoming.profile.id !== state.profile.id) return;
-          const remoteGame = restoreGame(incoming.days[today], puzzle);
-          state.profile = incoming.profile;
-          state.friends = incoming.friends;
-          state.reminder = incoming.reminder;
-          for (const [key, value] of Object.entries(incoming.days)) if (key !== today) state.days[key] = value;
-          if (remoteGame.completed && !game.completed) {
-            syncClock();
-            game = remoteGame;
-            state.days[today] = game;
-            paused = false;
-            stopPointer();
-            syncClock();
-            render();
-            showToast('Сегодняшняя задача уже пройдена в другой вкладке.');
-          } else renderStreak();
-          if (dialog.open && modalKind === 'friends') showFriends();
+          state.done = incoming.done;
+          state.current = incoming.current;
+          state.noAds = incoming.noAds;
+          if (game?.completed) render();
+          else {
+            const remote = incoming.inprogress?.id === levelId ? restoreGame(incoming.inprogress, puzzle) : null;
+            if (remote && remote.path.length > game.path.length) {
+              syncClock();
+              game = remote;
+              paused = false;
+              stopPointer();
+              syncClock();
+              render();
+              showToast('Прогресс обновлён из другой вкладки.');
+            } else renderSide();
+          }
+          if (dialog.open && modalKind === 'levels') showLevels();
         } catch { /* Ignore incomplete or unrelated storage events. */ }
       });
 
@@ -1970,47 +1564,38 @@
         const failures = [];
         let checks = 0;
         function check(condition, message) { checks++; if (!condition) failures.push(message); }
-        for (let offset = 0; offset < 32; offset++) {
-          const key = shiftDay('2026-01-01', offset * 11);
-          const data = makePuzzle(key);
-          check(validPath(data.solution, data, true), `Solvable daily puzzle: ${key}`);
-          check(new Set(data.solution).size === CELL_COUNT, `All cells unique: ${key}`);
-          check(data.numbers.size === 8, `Eight checkpoints: ${key}`);
-          check(validPath(data.solution.slice(0, 19), data), `Valid partial path: ${key}`);
-          check(!validPath([...data.solution.slice(0, 5), data.solution[0]], data), `No repeated cells: ${key}`);
-          check(JSON.stringify(data.solution) === JSON.stringify(makePuzzle(key).solution), `Deterministic daily puzzle: ${key}`);
-          check(data.walls.every(([a, b]) => !data.solution.some((cell, index) => index && edgeKey(cell, data.solution[index - 1]) === edgeKey(a, b))), `Walls do not block solution: ${key}`);
+        // Пак уровней: 100 штук, лесенка 10/25/35/30, id уникальны
+        check(Array.isArray(LEVELS) && LEVELS.length === 100, 'Levels pack has 100 levels');
+        check(new Set(LEVELS.map((l) => l.id)).size === 100, 'Level ids are unique');
+        const bySize = (size) => LEVELS.filter((l) => l.size === size).length;
+        check(bySize(4) === 10 && bySize(5) === 25 && bySize(6) === 35 && bySize(7) === 30, 'Size ladder is 10/25/35/30');
+        const WP = { 4: [4, 4], 5: [5, 6], 6: [7, 8], 7: [8, 9] };
+        for (const def of LEVELS) {
+          const nums = Object.entries(def.numbers);
+          const [lo, hi] = WP[def.size] || [4, 9];
+          if (nums.length < lo || nums.length > hi) { check(false, `Waypoint count in range: level ${def.id}`); break; }
+          const values = nums.map(([, n]) => n).sort((a, b) => a - b);
+          if (!values.every((n, i) => n === i + 1)) { check(false, `Waypoints are 1..N: level ${def.id}`); break; }
+          if (!def.walls.every(([a, b]) => Number.isInteger(a) && Number.isInteger(b) && a !== b && Math.abs(Math.floor(a / def.size) - Math.floor(b / def.size)) + Math.abs((a % def.size) - (b % def.size)) === 1)) { check(false, `Walls are valid edges: level ${def.id}`); break; }
         }
-        const samplePuzzle = makePuzzle('2026-01-01');
-        const packet = { v: 1, id: 'test-player-123', n: 'Саша', d: '2026-01-01', done: true, t: 91, h: 2, s: 3, p: samplePuzzle.solution, f: 36 };
-        check(readPacket(encodePacket(packet)).n === 'Саша', 'Unicode share round trip');
-        check(readPacket(encodePacket(packet)).t === 91, 'Score share round trip');
-        check(restoreGame({ path: samplePuzzle.solution, seconds: 91 }, samplePuzzle).completed, 'Completed daily puzzle stays locked');
-        check(shiftDay('2026-03-01', -1) === '2026-02-28', 'Calendar day rollover');
-        check(shiftDay('2028-03-01', -1) === '2028-02-29', 'Leap-year rollover');
+        checks++;
+        // Текущий уровень собран корректно
+        check(puzzle && puzzle.size === SIZE && CELL_COUNT === SIZE * SIZE, 'Puzzle matches board size');
+        check(puzzle.numbers.get(puzzle.start) === 1, 'Start cell holds number 1');
+        // validPath: базовые инварианты на текущем уровне
+        const tail = puzzle.neighbors[puzzle.start][0];
+        check(!validPath([], puzzle, true) && validPath([], puzzle), 'An empty board is not a completed level');
+        check(!validPath([tail === 0 ? 1 : 0], puzzle), 'Starting from a wrong cell is rejected');
+        check(!validPath([puzzle.start, puzzle.start], puzzle), 'No repeated cells');
+        // Таймер
         check(formatTime(91) === '01:31' && formatTime(3601) === '01:00:01', 'Timer formatting');
-        check(validTime('19:00') && !validTime('25:00'), 'Reminder time validation');
         check(advanceClock(91, 3000, true, true) === 91, 'Completed timer is immutable');
         check(advanceClock(91, 3000, false, false) === 91, 'Paused timer does not advance');
         check(advanceClock(91, 2500, true, false) === 93.5, 'Active timer uses elapsed time');
-        const swappedNumbers = new Map(samplePuzzle.numbers);
-        swappedNumbers.set(samplePuzzle.solution[5], 3);
-        swappedNumbers.set(samplePuzzle.solution[10], 2);
-        check(!validPath(samplePuzzle.solution, { ...samplePuzzle, numbers: swappedNumbers }, true), 'Checkpoint order is enforced');
-        const earlyNumbers = new Map(samplePuzzle.solution.slice(0, 8).map((cell, index) => [cell, index + 1]));
-        check(!validPath(samplePuzzle.solution.slice(0, 8), { ...samplePuzzle, numbers: earlyNumbers }), 'Finishing before filling every cell is rejected');
-        const blockedNeighbors = samplePuzzle.neighbors.map((neighbors) => [...neighbors]);
-        blockedNeighbors[samplePuzzle.solution[0]] = blockedNeighbors[samplePuzzle.solution[0]].filter((cell) => cell !== samplePuzzle.solution[1]);
-        check(!validPath(samplePuzzle.solution.slice(0, 2), { ...samplePuzzle, neighbors: blockedNeighbors }), 'Walls reject a crossing');
-        check(validPath([], samplePuzzle) && !validPath([], samplePuzzle, true), 'An empty board is not a completed game');
-        check(restoreGame({ path: [-1], seconds: -20, hints: -4 }, samplePuzzle).path.length === 0, 'Corrupted progress is discarded');
-        let rejectedPacket = false;
-        try { readPacket(encodePacket({ ...packet, p: [] })); } catch { rejectedPacket = true; }
-        check(rejectedPacket, 'A shared completion must include a valid path');
-        const folded = foldCalendarLine('DESCRIPTION:' + 'Напоминание '.repeat(12));
-        check(folded.split('\r\n').every((line) => new TextEncoder().encode(line).length <= 75), 'Calendar lines respect UTF-8 byte limits');
-        check(cellButtons.length === CELL_COUNT && $('boardCells').querySelectorAll('[role="row"]').length === SIZE, 'Accessible grid has 36 cells in six rows');
-        check($('boardCells').querySelectorAll('.number').length === 8, 'All checkpoint markers are rendered');
+        check(restoreGame({ path: [-1], seconds: -20, hints: -4 }, puzzle).path.length === 0, 'Corrupted progress is discarded');
+        // Рендер
+        check(cellButtons.length === CELL_COUNT && $('boardCells').querySelectorAll('[role="row"]').length === SIZE, 'Accessible grid matches level size');
+        check($('boardCells').querySelectorAll('.number').length === puzzle.numbers.size, 'All waypoint markers are rendered');
         check($('pathGradient').getAttribute('gradientUnits') === 'userSpaceOnUse', 'A straight first segment has a visible gradient');
         const ids = [...document.querySelectorAll('[id]')].map((element) => element.id);
         check(new Set(ids).size === ids.length, 'DOM identifiers are unique');
@@ -2018,30 +1603,57 @@
         return { checks, passed: checks - failures.length, failures };
       }
 
-      buildBoard();
-      uiReady = true;
-      render();
-      syncClock();
-      persist();
-      setupVKMiniApp();
-      receiveSharedLink();
-      if (pendingResult && !dialog.open) setTimeout(() => { if (pendingResult && !dialog.open) showResult(); }, 400);
-      setInterval(() => {
-        rollDay();
+      async function boot() {
+        await pkbInit(); // внутри: preloader до gameStarted (только мобайл)
+        let res;
+        try { res = await fetch(LEVELS_URL, { cache: 'no-store' }); } catch { res = null; }
+        if (!res?.ok) {
+          $('puzzleNumber').textContent = 'Нет уровней';
+          setInstruction('Не загрузился levels.build.json. Откройте игру через локальный сервер: python -m http.server', true);
+          pkbStarted();
+          return;
+        }
+        try {
+          LEVELS = await res.json();
+          if (!Array.isArray(LEVELS) || LEVELS.length !== 100) throw new Error('bad pack');
+        } catch {
+          setInstruction('Файл уровней повреждён. Пересоберите его: node gen-levels.mjs && node build-levels.mjs', true);
+          pkbStarted();
+          return;
+        }
+        if (!levelDef(levelId)) levelId = 1;
+        puzzle = buildPuzzle(levelDef(levelId));
+        game = (state.inprogress?.id === levelId) ? restoreGame(state.inprogress, puzzle) : restoreGame(null, puzzle);
+        paused = game.path.length > 0 && !game.completed;
+        focusedCell = game.path.at(-1) ?? puzzle.start;
+        buildBoard();
+        uiReady = true;
+        render();
         syncClock();
-        document.querySelectorAll('[data-countdown]').forEach((element) => { const text = countdown(); if (element.textContent !== text) element.textContent = text; });
+        persist();
+        await pkbRestorePurchases();
+        if (uiReady) renderSide();
+        pkbStarted();
+        if (pendingResult && !dialog.open) setTimeout(() => { if (pendingResult && !dialog.open) showResult(); }, 400);
+      }
+      setInterval(() => {
+        if (!uiReady || !game) return;
+        syncClock();
         if (clockRunning && Date.now() - lastSave > 2500) persist();
-        if (Date.now() - lastReminderCheck > 20000) { lastReminderCheck = Date.now(); checkReminder(); }
       }, 250);
       // Pure diagnostics are available from the console without changing progress or unlocking a level.
-      window.shagDiagnostics = selfTest;
-      window.zipDiagnostics = selfTest;
+      window.zigzagDiagnostics = selfTest;
+      boot();
       if (new URLSearchParams(location.search).has('selftest')) {
-        try {
-          const report = selfTest();
-          console.info('Zip self-test:', report);
-          showToast(report.failures.length ? `Проверки: ${report.passed} из ${report.checks}. Подробности в консоли.` : `Все ${report.checks} проверок пройдены.`);
-        } catch (error) { console.error('Zip self-test failed:', error); }
+        const wait = setInterval(() => {
+          if (!uiReady) return;
+          clearInterval(wait);
+          try {
+            const report = selfTest();
+            console.info('Zigzag self-test:', report);
+            showToast(report.failures.length ? `Проверки: ${report.passed} из ${report.checks}. Подробности в консоли.` : `Все ${report.checks} проверок пройдены.`);
+          } catch (error) { console.error('Zigzag self-test failed:', error); }
+        }, 200);
       }
     })();
   </script>
