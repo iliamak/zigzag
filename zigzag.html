@@ -1,0 +1,1661 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f7f7f2">
+  <meta name="description" content="Зигзаг: 100 головоломок с линией — от 4 на 4 до 7 на 7. Соединяйте числа и заполняйте всё поле.">
+  <title>зигзаг — 100 головоломок с линией</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='17' fill='%23f5753c'/%3E%3Cpath d='M17 19v27h15V19h15v27' fill='none' stroke='white' stroke-width='7' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <script async src="https://games.pikabu.ru/sdk/sdk.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <style>
+    :root {
+      --paper: #f7f7f2;
+      --white: #fff;
+      --ink: #292a27;
+      --muted: #8b8c84;
+      --line: #e3e4db;
+      --orange: #f5753c;
+      --orange-dark: #d95822;
+      --orange-soft: #fff0e6;
+      --green: #57745a;
+      --font: 'Golos Text', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    }
+    * { box-sizing: border-box; }
+    html { min-width: 320px; scroll-behavior: smooth; }
+    body { margin: 0; background: var(--paper); color: var(--ink); font-family: var(--font); font-size: 14px; -webkit-font-smoothing: antialiased; }
+    button, input, textarea { font: inherit; }
+    button, a, input, textarea { -webkit-tap-highlight-color: transparent; }
+    button { cursor: pointer; }
+    button { border: 0; background: none; color: inherit; }
+    a { color: inherit; text-decoration: none; }
+    button:disabled { cursor: not-allowed; opacity: .35; }
+    button, a, input, textarea { outline-offset: 5px; }
+    :focus-visible { outline: 2px solid var(--orange); }
+    svg { display: block; flex-shrink: 0; }
+    [hidden] { display: none !important; }
+    .icon { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+    .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+    .site-header { max-width: 1184px; height: 82px; margin: 0 auto; padding: 0 12px; border-bottom: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; gap: 24px; }
+    .brand-group { display: flex; align-items: center; }
+    .brand { display: inline-flex; align-items: center; gap: 11px; flex-shrink: 0; }
+    .brand-mark { width: 36px; height: 36px; }
+    .brand-word { font-size: 32px; font-weight: 800; letter-spacing: -2.4px; line-height: 1; }
+    .brand-note { color: var(--muted); font-size: 12px; border-left: 1px solid #dcded4; padding-left: 23px; margin-left: 23px; letter-spacing: -.1px; }
+    .header-nav { display: flex; align-items: center; gap: 29px; }
+    .nav-button { display: inline-flex; align-items: center; gap: 8px; padding: 10px 0; font-size: 12px; font-weight: 500; transition: color .2s; white-space: nowrap; }
+    .nav-button:hover { color: var(--orange-dark); }
+    .nav-button .icon { width: 17px; height: 17px; }
+    .nav-reminder { position: relative; width: 38px; height: 38px; display: grid; place-items: center; border: 1px solid #dedfd5; border-radius: 50%; transition: background .2s, border-color .2s; }
+    .nav-reminder:hover { border-color: var(--orange); background: var(--orange-soft); }
+    .nav-reminder.enabled::after { content: ''; position: absolute; width: 7px; height: 7px; background: var(--orange); border: 2px solid var(--paper); border-radius: 50%; top: 2px; right: 1px; }
+    .main-shell { max-width: 1060px; margin: 26px auto 0; padding: 0 28px; }
+    .game-layout { display: grid; grid-template-columns: minmax(0, 556px) 326px; gap: 88px; justify-content: center; }
+    .game-column { min-width: 0; }
+    .game-inner { max-width: 456px; margin: 0 auto; }
+    .game-heading { text-align: center; margin-bottom: 24px; animation: enter-up .7s both; }
+    .game-heading h1 { margin: 0; font-size: 80px; font-weight: 800; line-height: .95; letter-spacing: -6px; }
+    .brand-period { color: var(--orange); }
+    .game-heading p { margin: 10px 0 0; font-size: 13px; line-height: 1.6; color: #787d70; letter-spacing: -.1px; }
+    .board-meta { display: flex; align-items: center; justify-content: space-between; min-height: 31px; margin-bottom: 12px; animation: enter-up .7s .08s both; }
+    .daily-label { display: flex; align-items: center; gap: 8px; font-size: 11px; color: #888a7f; }
+    .daily-label strong { font-weight: 600; color: #484b42; }
+    .daily-dot { width: 6px; height: 6px; background: var(--orange); border-radius: 50%; }
+    .meta-separator { width: 1px; height: 11px; margin: 0 3px; background: #d8dad0; }
+    .timer-tools { display: flex; align-items: center; gap: 10px; }
+    .timer { display: flex; align-items: center; gap: 7px; font-variant-numeric: tabular-nums; font-size: 13px; font-weight: 500; }
+    .timer .icon { width: 15px; height: 15px; color: #8a8b83; }
+    .icon-button { display: grid; place-items: center; width: 29px; height: 29px; border-radius: 7px; transition: background .2s, color .2s; }
+    .icon-button:hover:not(:disabled) { background: #ebece3; color: var(--orange-dark); }
+    .icon-button .icon { width: 16px; height: 16px; }
+    .board-stage { position: relative; animation: board-enter .8s .1s both; }
+    .board { width: 100%; aspect-ratio: 1; position: relative; overflow: hidden; background: white; border: 2px solid #363831; border-radius: 12px; touch-action: none; user-select: none; -webkit-user-select: none; }
+    .board-art, .board-cells { position: absolute; inset: 0; width: 100%; height: 100%; }
+    .board-art { pointer-events: none; }
+    .board-cells { display: grid; }
+    .board[data-size="4"] .number { width: 40px; height: 40px; font-size: 18px; }
+    .board[data-size="5"] .number { width: 36px; height: 36px; font-size: 16px; }
+    .board[data-size="7"] .number { width: 28px; height: 28px; font-size: 12px; }
+    .board[data-size="7"] #drawnPath { stroke-width: 34; }
+    .level-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin: 20px 0; }
+    .level-cell { min-height: 44px; border: 1px solid var(--line); border-radius: 8px; background: #fff; font-size: 13px; font-variant-numeric: tabular-nums; display: grid; place-items: center; transition: background .2s, border-color .2s; }
+    .level-cell:hover:not(:disabled) { border-color: var(--orange); background: var(--orange-soft); }
+    .level-cell.done { background: #edf0e5; border-color: #c4c9b6; color: var(--green); font-weight: 600; }
+    .level-cell.current { border: 2px solid var(--orange); font-weight: 700; }
+    .board-cell { position: relative; display: grid; place-items: center; padding: 0; border-radius: 0; touch-action: none; }
+    .board-cell:hover { background: rgba(245,117,60,.035); }
+    .board-cell:focus-visible { outline: 2px dashed var(--orange); outline-offset: -5px; border-radius: 7px; background: rgba(245,117,60,.04); }
+    .number { position: relative; display: grid; place-items: center; width: 33px; height: 33px; background: var(--ink); color: #fff; border-radius: 50%; font-size: 15px; font-weight: 500; line-height: 1; pointer-events: none; transition: background .25s, box-shadow .25s; }
+    .number.start { background: var(--orange); color: #2d2b24; font-weight: 600; }
+    .number.start::after { content: ''; position: absolute; inset: -6px; border: 1.5px solid rgba(245,117,60,.45); border-radius: 50%; animation: start-pulse 2.8s ease-out infinite; }
+    .board.started .number.start::after { animation: none; opacity: 0; }
+    .board-cell.visited .number:not(.start) { background: #3b3029; box-shadow: 0 0 0 3px #ffdfc6; }
+    .board-cell.just-hit .number { animation: number-pop .35s ease-out; }
+    .board-cell.invalid { animation: invalid-cell .4s ease-out; }
+    .board-cell.hinted::after { content: ''; position: absolute; inset: 12%; border: 2px dashed var(--orange); border-radius: 12px; background: rgba(245,117,60,.06); animation: hint-pulse 1.6s ease-in-out infinite; pointer-events: none; }
+    .board.complete { border-color: #e39562; }
+    .board.complete #drawnPath { animation: complete-glow 1.3s ease-in-out; }
+    .pause-overlay { position: absolute; inset: 2px; z-index: 5; display: flex; align-items: center; justify-content: center; flex-direction: column; background: rgba(247,247,242,.92); backdrop-filter: blur(7px); border-radius: 10px; animation: fade-in .2s; }
+    .pause-symbol { display: grid; place-items: center; width: 65px; height: 65px; margin-bottom: 18px; border: 1px solid #dcdfd1; border-radius: 50%; background: var(--paper); }
+    .pause-symbol .icon { width: 25px; height: 25px; }
+    .pause-overlay h2 { margin: 0; font-size: 22px; font-weight: 600; letter-spacing: -.7px; }
+    .pause-overlay p { font-size: 12px; color: var(--muted); margin: 10px 0 24px; }
+    .game-status { min-height: 36px; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding-top: 8px; }
+    .instruction { display: flex; align-items: center; gap: 7px; font-size: 11px; line-height: 1.6; color: #73796a; }
+    .instruction .icon { width: 14px; height: 14px; color: var(--orange); }
+    .instruction.error { color: var(--orange-dark); }
+    .progress-count { font-size: 10px; color: #93958a; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .game-controls { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 14px; }
+    .control-button { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 39px; padding: 0 10px; border-radius: 8px; color: #65685b; font-size: 12px; transition: color .2s, background .2s, transform .2s; }
+    .control-button .icon { width: 16px; height: 16px; }
+    .control-button:hover:not(:disabled) { background: #eceee3; color: var(--ink); transform: translateY(-1px); }
+    .hint-button { min-width: 126px; border: 1px solid #dddfd3; background: #fff; color: #43463d; }
+    .hint-button .icon { color: var(--orange-dark); }
+    .result-controls { display: flex; gap: 10px; margin-top: 13px; }
+    .result-controls .button { flex: 1; padding: 12px 10px; }
+    .side-column { padding-top: 147px; animation: enter-up .7s .22s both; }
+    .how-to { border: 1px solid #e1e3d8; border-radius: 13px; background: #fff; overflow: hidden; }
+    .how-heading { margin: 0; }
+    .how-toggle { width: 100%; display: flex; align-items: center; justify-content: space-between; padding: 23px 24px 0; text-align: left; font-size: 17px; font-weight: 600; letter-spacing: -.5px; }
+    .how-toggle .icon { width: 16px; height: 16px; color: #73776a; transition: transform .25s; }
+    .how-toggle[aria-expanded="false"] { padding-bottom: 23px; }
+    .how-toggle[aria-expanded="false"] .icon { transform: rotate(180deg); }
+    .how-content { padding: 0 24px 22px; }
+    .rule-steps { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 13px -9px 22px; }
+    .rule-step { text-align: center; }
+    .rule-picture { width: 100%; height: 91px; }
+    .rule-step p { font-size: 12px; line-height: 1.6; font-weight: 500; margin: 3px 0 0; }
+    .mini-route { stroke-dasharray: 330; stroke-dashoffset: 0; animation: route-demo 7s 1.1s infinite; }
+    .rule-connect-line { stroke-dasharray: 96; animation: connect-demo 7s 1.1s infinite; }
+    .how-note { padding-top: 17px; border-top: 1px solid #eceee6; color: #7a806f; font-size: 10.5px; line-height: 1.8; }
+    .demo-link { display: inline-flex; align-items: center; gap: 7px; font-size: 11px; font-weight: 500; margin-top: 14px; color: #7b7d72; padding: 0; transition: color .2s; }
+    .demo-link:hover { color: var(--orange-dark); }
+    .demo-link .icon { width: 13px; height: 13px; }
+    .streak-block { margin-top: 29px; padding: 0 5px; }
+    .streak-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .streak-title { display: flex; align-items: center; gap: 8px; }
+    .streak-title > svg { width: 25px; height: 28px; }
+    .streak-title h2 { font-size: 15px; letter-spacing: -.25px; font-weight: 600; margin: 0; }
+    .streak-value { font-size: 11px; font-weight: 500; color: var(--orange-dark); }
+    .streak-description { color: #929489; font-size: 10.5px; line-height: 1.7; margin: 9px 0 17px; }
+    .week { display: grid; grid-template-columns: repeat(7, 1fr); gap: 10px; }
+    .week-day { display: flex; align-items: center; flex-direction: column; gap: 7px; }
+    .week-dot { display: grid; place-items: center; width: 30px; height: 30px; border: 1px solid #e0e3d5; border-radius: 50%; background: #f0f1e8; }
+    .week-dot::after { content: ''; width: 3px; height: 3px; border-radius: 50%; background: #c7cbbc; }
+    .week-day.today .week-dot { background: #fff7ed; border: 1.5px solid #f4ae7d; }
+    .week-day.today .week-dot::after { width: 5px; height: 5px; background: var(--orange); }
+    .week-day.done .week-dot { border-color: var(--orange); background: var(--orange); color: #fff; }
+    .week-day.done .week-dot::after { display: none; }
+    .week-dot .icon { width: 14px; height: 14px; stroke-width: 2.3; }
+    .week-label { font-size: 9px; color: #9a9d90; text-transform: uppercase; }
+    .week-day.today .week-label { color: #c46b36; font-weight: 600; }
+    .reminder-button { width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 41px; margin-top: 21px; border: 1px solid #dbdecf; border-radius: 8px; background: transparent; font-size: 11px; font-weight: 500; transition: background .2s, border-color .2s; }
+    .reminder-button:hover { background: #fff; border-color: #bfc5af; }
+    .reminder-button .icon { width: 15px; height: 15px; }
+    .reminder-caption { margin: 9px 0 0; color: #a0a395; font-size: 9px; text-align: center; }
+    .site-footer { max-width: 1160px; margin: 43px auto 0; padding: 20px 0 25px; border-top: 1px solid var(--line); display: flex; justify-content: space-between; align-items: center; gap: 18px; color: #969b8d; font-size: 10px; }
+    .footer-thought { display: flex; align-items: center; gap: 8px; }
+    .footer-thought .icon { width: 15px; height: 15px; color: #abb09f; }
+    .footer-right { display: flex; align-items: center; gap: 21px; }
+    .about-button { padding: 4px 0; font-size: 10px; transition: color .2s; }
+    .about-button:hover { color: var(--ink); }
+    .button { display: inline-flex; align-items: center; justify-content: center; gap: 9px; min-height: 45px; padding: 12px 20px; border: 1px solid transparent; border-radius: 9px; font-size: 12px; font-weight: 500; line-height: 1.4; transition: background .2s, transform .2s, border-color .2s; }
+    .button:hover:not(:disabled) { transform: translateY(-1px); }
+    .button .icon { width: 17px; height: 17px; }
+    .button-primary { background: var(--ink); color: white; }
+    .button-primary:hover:not(:disabled) { background: #44493b; }
+    .button-orange { background: var(--orange); color: white; }
+    .button-orange:hover:not(:disabled) { background: #e6662d; }
+    .button-secondary { border-color: var(--line); background: white; }
+    .button-secondary:hover:not(:disabled) { border-color: #c4c9b6; background: #f8f9f4; }
+    .button-subtle { color: #858b78; padding: 8px 12px; min-height: 36px; }
+    .button-subtle:hover:not(:disabled) { background: #f0f2e9; }
+    .button-full { width: 100%; }
+    .button-row { display: flex; gap: 10px; }
+    .button-row > .button { flex: 1; }
+    .dialog { width: min(480px, calc(100% - 32px)); max-height: calc(100dvh - 48px); margin: auto; padding: 0; background: var(--paper); color: var(--ink); border: 1px solid rgba(55,63,39,.09); border-radius: 20px; box-shadow: 0 25px 100px rgba(36,41,29,.13); overflow: auto; overscroll-behavior: contain; }
+    .dialog[open] { animation: dialog-enter .25s cubic-bezier(.2,.8,.2,1); }
+    .dialog::backdrop { background: rgba(39,43,31,.28); backdrop-filter: blur(4px); }
+    .dialog-close { position: absolute; top: 16px; right: 16px; z-index: 2; width: 31px; height: 31px; border-radius: 50%; background: #eceee5; display: grid; place-items: center; transition: background .2s; }
+    .dialog-close:hover { background: #e0e4d6; }
+    .dialog-close .icon { width: 15px; height: 15px; }
+    .modal-body { padding: 36px 34px 28px; }
+    .modal-eyebrow { font-size: 10px; letter-spacing: 1.6px; color: #959b88; font-weight: 500; text-transform: uppercase; margin-bottom: 12px; }
+    .modal-title { font-size: 28px; letter-spacing: -1.1px; line-height: 1.18; font-weight: 600; margin: 0; padding-right: 8px; }
+    .modal-description { color: #737e66; font-size: 12px; line-height: 1.8; margin: 13px 0 22px; }
+    .modal-small { color: #969d89; font-size: 10px; line-height: 1.8; margin: 16px 0 0; }
+    .modal-center { text-align: center; }
+    .modal-center .modal-title { padding: 0; }
+    .modal-symbol { width: 64px; height: 64px; display: grid; place-items: center; border-radius: 50%; background: #ffead9; color: var(--orange-dark); margin: 2px 0 22px; }
+    .modal-symbol .icon { width: 28px; height: 28px; stroke-width: 1.4; }
+    .modal-center .modal-symbol { margin: 4px auto 19px; }
+    .result-symbol { width: 82px; height: 75px; margin: 0 auto 16px; }
+    .result-stats { display: grid; grid-template-columns: repeat(3, 1fr); margin: 26px 0; padding: 19px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+    .result-stat + .result-stat { border-left: 1px solid var(--line); }
+    .result-stat strong { display: block; font-size: 22px; font-weight: 500; letter-spacing: -.6px; font-variant-numeric: tabular-nums; }
+    .result-stat span { display: block; color: #939a86; font-size: 9px; margin-top: 5px; }
+    .rank-question { margin: 0 0 17px; font-size: 15px; line-height: 1.6; font-weight: 500; letter-spacing: -.25px; }
+    .result-share { margin-top: 7px; }
+    .next-puzzle { font-size: 10px; color: #929986; margin: 20px 0 0; }
+    .next-puzzle span { color: #6f785f; font-variant-numeric: tabular-nums; }
+    .field-label { display: block; font-size: 11px; font-weight: 500; margin: 19px 0 8px; color: #59624d; }
+    .field { width: 100%; min-height: 44px; border: 1px solid #dce1d1; border-radius: 8px; background: #fff; color: var(--ink); padding: 11px 13px; outline-offset: 2px; font-size: 12px; }
+    textarea.field { resize: vertical; line-height: 1.7; }
+    .field:focus { border-color: var(--orange); outline: 2px solid #ffe4cc; }
+    .inline-field { display: flex; align-items: stretch; gap: 8px; }
+    .inline-field .field { min-width: 0; flex: 1; }
+    .inline-field .button { flex-shrink: 0; min-height: 44px; padding: 10px 14px; }
+    .field-help { font-size: 10px; color: #989f8b; line-height: 1.7; margin: 8px 0 0; }
+    .form-status { font-size: 11px; line-height: 1.7; margin: 12px 0 0; color: var(--orange-dark); }
+    .form-status.success { color: var(--green); }
+    .reminder-time { display: flex; align-items: center; justify-content: space-between; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 17px 0; margin-bottom: 20px; gap: 15px; }
+    .reminder-time label { font-size: 12px; font-weight: 500; }
+    .reminder-time small { display: block; font-size: 10px; color: #9ba28f; margin-top: 5px; font-weight: 400; }
+    .time-field { width: 116px; flex-shrink: 0; min-height: 47px; padding: 10px 11px; text-align: center; font-size: 17px; font-weight: 500; font-variant-numeric: tabular-nums; }
+    .reminder-limit { display: flex; gap: 9px; font-size: 10px; color: #919a83; line-height: 1.8; margin: 17px 0 22px; }
+    .reminder-limit .icon { width: 15px; height: 15px; margin-top: 2px; }
+    .calendar-button { margin-top: 10px; }
+    .friend-empty { padding: 21px 0 23px; text-align: center; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+    .friend-empty .icon { width: 34px; height: 34px; color: #aeb99c; margin: 0 auto 13px; stroke-width: 1.2; }
+    .friend-empty strong { display: block; font-size: 13px; font-weight: 500; }
+    .friend-empty p { margin: 8px 0 0; font-size: 11px; line-height: 1.8; color: #929d83; }
+    .leader-header, .leader-row { display: grid; grid-template-columns: 25px minmax(0, 1fr) 54px 40px; align-items: center; gap: 10px; }
+    .leader-header { font-size: 9px; color: #9ba58c; padding-bottom: 10px; }
+    .leader-header > :nth-child(n+3) { text-align: right; }
+    .leader-row { padding: 13px 0; border-top: 1px solid var(--line); font-size: 12px; }
+    .leader-row.self { color: var(--orange-dark); }
+    .leader-place { font-variant-numeric: tabular-nums; color: #8d997b; }
+    .leader-name { display: flex; align-items: center; gap: 9px; min-width: 0; }
+    .leader-avatar { display: grid; place-items: center; width: 29px; height: 29px; background: #e6eadb; border-radius: 50%; color: #6d7a5a; font-size: 11px; flex-shrink: 0; }
+    .leader-row.self .leader-avatar { background: #ffe5cf; color: var(--orange-dark); }
+    .leader-name-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
+    .leader-time, .leader-hints { text-align: right; font-size: 11px; font-variant-numeric: tabular-nums; }
+    .leader-hints { color: #9aab83; }
+    .rank-summary { background: #edf0e5; border-radius: 8px; padding: 12px 14px; font-size: 11px; line-height: 1.7; margin: 0 0 20px; color: #687b52; }
+    .friend-actions { margin-top: 19px; }
+    .import-section { border-top: 1px solid var(--line); margin-top: 21px; padding-top: 16px; }
+    .import-section summary { cursor: pointer; font-size: 11px; font-weight: 500; color: #68765a; }
+    .import-section textarea { margin-top: 12px; }
+    .import-section .button { margin-top: 8px; min-height: 39px; }
+    .share-preview { background: #fff8ed; border: 1px solid #efdfca; border-radius: 12px; padding: 20px; margin: 21px 0 18px; }
+    .share-preview-brand { font-weight: 800; font-size: 34px; line-height: 1; letter-spacing: -2.6px; }
+    .share-preview-top { display: flex; align-items: center; justify-content: space-between; }
+    .share-preview-date { color: #b9a28b; font-size: 10px; }
+    .share-preview-title { font-size: 21px; letter-spacing: -.6px; font-weight: 500; margin: 19px 0 8px; }
+    .share-preview-stats { color: #ae896c; font-size: 11px; line-height: 1.8; margin: 0; }
+    .share-buttons { display: grid; grid-template-columns: 1fr 1fr 44px; gap: 8px; }
+    .share-buttons .button { padding: 10px 11px; min-height: 42px; font-size: 11px; }
+    .share-buttons .button .icon { width: 16px; height: 16px; }
+    .share-more { display: flex; justify-content: center; flex-wrap: wrap; gap: 2px 9px; margin-top: 13px; }
+    .share-more .button { font-size: 10px; gap: 6px; padding: 8px 6px; }
+    .share-more .icon { width: 14px; height: 14px; }
+    .share-code { margin-top: 17px; padding-top: 17px; border-top: 1px solid var(--line); }
+    .share-code > p { font-size: 10px; color: #939d86; line-height: 1.7; margin: 0 0 8px; }
+    .share-code .button { min-height: 36px; font-size: 10px; padding: 8px 10px; width: 100%; }
+    .tutorial-board { width: 234px; max-width: 100%; margin: 24px auto 21px; }
+    .tutorial-path { stroke-dasharray: 680; stroke-dashoffset: 680; }
+    .tutorial-board.playing .tutorial-path { animation: tutorial-draw 5.5s .25s both; }
+    .tutorial-board.undo-demo .tutorial-path { animation: tutorial-undo 6s .2s infinite; }
+    .tutorial-step-title { font-size: 15px; font-weight: 500; margin: 0 0 8px; }
+    .tutorial-step-text { color: #8a967b; font-size: 11px; line-height: 1.9; min-height: 43px; margin: 0; }
+    .tutorial-pagination { display: flex; align-items: center; justify-content: center; gap: 7px; margin: 20px 0 24px; }
+    .tutorial-pagination button { width: 7px; height: 7px; padding: 0; background: #d6dec9; border-radius: 50%; transition: width .25s, background .25s; }
+    .tutorial-pagination button.active { width: 21px; border-radius: 4px; background: var(--orange); }
+    .about-copy p { font-size: 12px; line-height: 1.9; color: #7b8970; margin: 19px 0; }
+    .about-copy a { color: var(--orange-dark); text-decoration: underline; text-underline-offset: 3px; }
+    .about-copy kbd { display: inline-block; font: inherit; background: #e8ecdf; border: 1px solid #d5ddc6; border-radius: 4px; padding: 0 4px; color: #62774f; }
+    .toast { position: fixed; bottom: 25px; left: 50%; z-index: 50; transform: translate(-50%, 15px); width: max-content; max-width: calc(100% - 32px); padding: 13px 19px; border: 1px solid #e1e7d6; border-radius: 10px; background: var(--ink); color: white; font-size: 11px; line-height: 1.7; text-align: center; box-shadow: 0 8px 25px #25371814; opacity: 0; pointer-events: none; transition: transform .25s, opacity .25s; }
+    .toast.visible { transform: translate(-50%, 0); opacity: 1; }
+    .confetti-layer { position: fixed; inset: 0; z-index: 40; pointer-events: none; overflow: hidden; }
+    .confetti-piece { position: absolute; top: -14px; width: 6px; height: 12px; animation: confetti-fall 2.5s ease-in both; }
+    .storage-warning { max-width: 456px; margin: 14px auto 0; padding: 12px 0; color: var(--orange-dark); font-size: 10px; line-height: 1.8; border-top: 1px solid #ecc9ad; }
+    .vk-note { max-width: 456px; margin: 10px auto 0; color: #8c9580; font-size: 10px; line-height: 1.7; text-align: center; }
+    .vk-note strong { color: #637252; font-weight: 600; }
+    noscript { display: block; padding: 20px; text-align: center; color: var(--orange-dark); }
+    @keyframes enter-up { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes board-enter { from { opacity: 0; transform: translateY(10px) scale(.985); } to { opacity: 1; transform: none; } }
+    @keyframes start-pulse { 0%,100% { transform: scale(1); opacity: .75; } 55% { transform: scale(1.14); opacity: .2; } }
+    @keyframes route-demo { 0%,14% { stroke-dashoffset: 330; } 60%,90% { stroke-dashoffset: 0; } 100% { stroke-dashoffset: 330; } }
+    @keyframes connect-demo { 0%,10% { stroke-dashoffset: 96; } 33%,90% { stroke-dashoffset: 0; } 100% { stroke-dashoffset: 96; } }
+    @keyframes number-pop { 0%,100% { transform: scale(1); } 45% { transform: scale(1.2); } }
+    @keyframes invalid-cell { 0%,100% { background: transparent; } 30%,70% { background: #fa744026; } }
+    @keyframes hint-pulse { 0%,100% { opacity: .55; } 50% { opacity: 1; } }
+    @keyframes complete-glow { 0%,100% { opacity: 1; } 35% { opacity: .45; } 65% { opacity: 1; } }
+    @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes dialog-enter { from { opacity: 0; transform: translateY(10px) scale(.985); } to { opacity: 1; transform: none; } }
+    @keyframes tutorial-draw { 0%,8% { stroke-dashoffset: 680; } 100% { stroke-dashoffset: 0; } }
+    @keyframes tutorial-undo { 0%,25%,100% { stroke-dashoffset: 0; } 50%,67% { stroke-dashoffset: 181; } }
+    @keyframes confetti-fall { to { transform: translate(var(--drift), 105vh) rotate(var(--spin)); opacity: .2; } }
+    @media (min-width: 1400px) {
+      .site-header { height: 86px; }
+      .main-shell { margin-top: 29px; }
+      .game-heading { margin-bottom: 25px; }
+      .side-column { padding-top: 148px; }
+    }
+    @media (max-width: 1240px) {
+      .site-header, .site-footer { margin-left: 40px; margin-right: 40px; }
+      .game-layout { gap: 56px; }
+    }
+    @media (max-width: 1000px) and (min-width: 861px) {
+      .main-shell { padding: 0 40px; }
+      .game-layout { grid-template-columns: minmax(0, 1fr) 292px; gap: 42px; }
+      .how-toggle { padding-left: 20px; padding-right: 20px; }
+      .how-content { padding-left: 20px; padding-right: 20px; }
+      .week { gap: 6px; }
+      .game-heading h1 { font-size: 76px; }
+      .side-column { padding-top: 143px; }
+      .number { width: 31px; height: 31px; font-size: 14px; }
+      .instruction { font-size: 10px; }
+    }
+    @media (max-width: 860px) {
+      .site-header { height: 76px; margin: 0 26px; padding: 0; }
+      .brand-note { display: none; }
+      .main-shell { max-width: 650px; margin-top: 29px; padding: 0 25px; }
+      .game-layout { display: block; }
+      .game-heading h1 { font-size: 72px; }
+      .game-heading p { font-size: 12px; margin-top: 11px; }
+      .game-heading { margin-bottom: 25px; }
+      .side-column { padding-top: 39px; display: grid; grid-template-columns: 1fr 1fr; gap: 24px; align-items: start; }
+      .how-toggle { padding: 19px 18px 0; }
+      .how-toggle { font-size: 16px; }
+      .how-content { padding: 0 18px 18px; }
+      .rule-steps { gap: 5px; margin-top: 8px; margin-bottom: 17px; }
+      .rule-step p { font-size: 10.5px; }
+      .rule-picture { height: 78px; }
+      .how-note { font-size: 9px; }
+      .streak-block { margin-top: 9px; padding: 0; }
+      .streak-title h2 { font-size: 14px; }
+      .streak-top { gap: 3px; }
+      .streak-title { gap: 4px; }
+      .streak-value { font-size: 10px; }
+      .week { gap: 4px; }
+      .week-dot { width: 28px; height: 28px; }
+      .site-footer { margin: 38px 26px 0; font-size: 9px; }
+      .footer-right { gap: 15px; }
+      .about-button { font-size: 9px; }
+    }
+    @media (max-width: 580px) {
+      .site-header { margin: 0 20px; height: 72px; }
+      .brand-mark { width: 31px; height: 31px; }
+      .brand { gap: 8px; }
+      .brand-word { font-size: 29px; }
+      .header-nav { gap: 18px; }
+      .nav-button { font-size: 10px; gap: 5px; }
+      .nav-button .icon { width: 15px; height: 15px; }
+      .nav-reminder { width: 32px; height: 32px; }
+      .nav-reminder .icon { width: 16px; height: 16px; }
+      .main-shell { margin-top: 25px; padding: 0 22px; max-width: 490px; }
+      .game-heading h1 { font-size: 66px; letter-spacing: -5px; }
+      .game-heading p { font-size: 11px; margin-top: 11px; }
+      .game-heading { margin-bottom: 23px; }
+      .board-meta { margin-bottom: 9px; }
+      .daily-label { font-size: 10px; gap: 7px; }
+      .timer { font-size: 12px; }
+      .number { width: 29px; height: 29px; font-size: 13px; }
+      .number.start::after { inset: -5px; }
+      .board { border-radius: 10px; }
+      .instruction { font-size: 9.5px; gap: 5px; }
+      .instruction .icon { width: 12px; height: 12px; }
+      .progress-count { font-size: 9px; }
+      .game-controls { margin-top: 9px; gap: 5px; }
+      .control-button { font-size: 10.5px; gap: 6px; padding: 0 9px; min-height: 41px; }
+      .hint-button { min-width: 109px; }
+      .side-column { display: block; padding-top: 30px; }
+      .how-toggle { padding: 22px 23px 0; }
+      .how-content { padding: 0 23px 22px; }
+      .rule-steps { gap: 18px; margin: 12px 0 19px; }
+      .rule-picture { height: 94px; }
+      .rule-step p { font-size: 12px; }
+      .how-note { font-size: 10px; }
+      .streak-block { margin-top: 27px; padding: 0 5px; }
+      .streak-title h2 { font-size: 15px; }
+      .streak-title { gap: 8px; }
+      .streak-value { font-size: 11px; }
+      .streak-description { font-size: 11px; margin-bottom: 19px; }
+      .week-dot { width: 34px; height: 34px; }
+      .week { gap: 10px; }
+      .week-label { font-size: 10px; }
+      .reminder-button { font-size: 12px; min-height: 44px; }
+      .reminder-caption { font-size: 9px; }
+      .site-footer { margin: 35px 22px 0; padding-top: 21px; display: flex; flex-direction: column; gap: 13px; font-size: 9px; }
+      .footer-right { gap: 18px; }
+      .modal-body { padding: 35px 25px 25px; }
+      .modal-title { font-size: 26px; }
+      .field { font-size: 16px; }
+      .time-field { font-size: 17px; }
+      .dialog { max-height: calc(100dvh - 30px); border-radius: 16px; }
+    }
+    body.vk-mini-app { overscroll-behavior-y: none; }
+    body.vk-mini-app .header-nav { display: none; }
+    body.vk-mini-app .site-header { max-width: 880px; }
+    body.vk-mini-app .brand-note::after { content: 'VK Mini App'; }
+    body.vk-mini-app .brand-note { font-size: 0; }
+    body.vk-mini-app .brand-note::after { font-size: 12px; }
+    @supports (padding: env(safe-area-inset-bottom)) {
+      body.vk-mini-app { padding-bottom: env(safe-area-inset-bottom); }
+    }
+    @media (max-width: 365px) {
+      .header-nav { gap: 12px; }
+      .nav-button .icon { display: none; }
+      .main-shell { padding: 0 17px; }
+      .number { width: 25px; height: 25px; font-size: 12px; }
+      .instruction { font-size: 8.5px; }
+      .hint-button { min-width: 100px; }
+      .control-button { padding: 0 7px; }
+      .week { gap: 4px; }
+      .week-dot { width: 30px; height: 30px; }
+      .modal-body { padding-left: 20px; padding-right: 20px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      *, *::before, *::after { animation-duration: .01ms !important; animation-delay: 0ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+      .mini-route, .rule-connect-line, .tutorial-board.playing .tutorial-path { stroke-dashoffset: 0; }
+      .confetti-layer { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <svg xmlns="http://www.w3.org/2000/svg" width="0" height="0" aria-hidden="true" style="position:absolute;overflow:hidden">
+    <defs>
+      <symbol id="i-users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2m20 0v-2a4 4 0 0 0-3-3.87M15 3.13a4 4 0 0 1 0 7.75"/><circle cx="9" cy="7" r="4"/></symbol>
+      <symbol id="i-bell" viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9m-8 12a2 2 0 0 0 4 0M12 2V1"/></symbol>
+      <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m6 14 6-6 6 6"/></symbol>
+      <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M4 12h15m-6-6 6 6-6 6"/></symbol>
+      <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2M9 2h6m-3 0v3m6 2 2-2"/></symbol>
+      <symbol id="i-pause" viewBox="0 0 24 24"><path d="M8 5v14M16 5v14" stroke-width="2.7"/></symbol>
+      <symbol id="i-play" viewBox="0 0 24 24"><path d="m8 5 11 7-11 7V5Z"/></symbol>
+      <symbol id="i-undo" viewBox="0 0 24 24"><path d="M9 4 4 9l5 5M4 9h10a6 6 0 0 1 0 12h-3"/></symbol>
+      <symbol id="i-reset" viewBox="0 0 24 24"><path d="M3 10a9 9 0 1 1 2.6 8.4M3 4v6h6"/></symbol>
+      <symbol id="i-bulb" viewBox="0 0 24 24"><path d="M9 18h6m-5 3h4M8 14a6 6 0 1 1 8 0c-1 .8-1 2-1 2H9s0-1.2-1-2Zm4-13V0M3 5 1 4m20 0-2 1"/></symbol>
+      <symbol id="i-hand" viewBox="0 0 24 24"><path d="M8 13V5a2 2 0 0 1 4 0v6-2a2 2 0 0 1 4 0v3-1a2 2 0 0 1 4 0v5c0 4-3 6-6 6h-1c-2 0-4-1-5-3l-4-5a2 2 0 0 1 3-2l1 1Z"/></symbol>
+      <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
+      <symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></symbol>
+      <symbol id="i-share" viewBox="0 0 24 24"><path d="M12 15V2m-5 5 5-5 5 5M5 11H3v10h18V11h-2"/></symbol>
+      <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="13" rx="2"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/></symbol>
+      <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5"/></symbol>
+      <symbol id="i-calendar" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 11h18m-13 5h2m4 0h2"/></symbol>
+      <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10v.01"/></symbol>
+      <symbol id="i-spark" viewBox="0 0 24 24"><path d="m12 3 2.6 6.4L21 12l-6.4 2.6L12 21l-2.6-6.4L3 12l6.4-2.6L12 3Z"/></symbol>
+      <symbol id="i-telegram" viewBox="0 0 24 24"><path d="m21 3-4 18-6-5-4 3 1-6 10-7-13 9-4-3L21 3Z"/></symbol>
+      <symbol id="i-trophy" viewBox="0 0 24 24"><path d="M8 3h8v7a4 4 0 0 1-8 0V3Zm0 2H4v3a4 4 0 0 0 4 4m8-7h4v3a4 4 0 0 1-4 4m-4 2v5m-4 2h8m-7-2h6"/></symbol>
+    </defs>
+  </svg>
+
+  <header class="site-header">
+    <div class="brand-group flex items-center">
+      <a class="brand" href="#" id="homeLink" aria-label="Зигзаг, главная">
+        <svg class="brand-mark" viewBox="0 0 40 40" aria-hidden="true"><rect width="40" height="40" rx="11" fill="#f5753c"/><path d="M10 12v17h10V12h10v17" fill="none" stroke="#fff" stroke-width="4.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span class="brand-word">зигзаг</span>
+      </a>
+      <span class="brand-note">100 головоломок с линией</span>
+    </div>
+    <nav class="header-nav" aria-label="Основная навигация">
+      <button type="button" class="nav-button" id="navLevels">Уровни</button>
+      <button type="button" class="nav-button" id="navRules">Как играть</button>
+    </nav>
+  </header>
+
+  <main class="main-shell">
+    <div class="game-layout">
+      <section class="game-column" aria-labelledby="gameTitle">
+        <div class="game-inner">
+          <div class="game-heading">
+            <h1 id="gameTitle">зигзаг<span class="brand-period">.</span></h1>
+            <p>Одна линия. Сто головоломок — от 4 на 4 до 7 на 7.</p>
+          </div>
+          <div class="board-meta">
+            <div class="daily-label"><span class="daily-dot" aria-hidden="true"></span><strong id="puzzleNumber">Уровень 1</strong><span class="meta-separator" aria-hidden="true"></span><span id="puzzleDate"></span></div>
+            <div class="timer-tools">
+              <div class="timer" aria-label="Время игры"><svg class="icon" aria-hidden="true"><use href="#i-clock"/></svg><span id="timerText">00:00</span></div>
+              <button type="button" class="icon-button" id="pauseButton" aria-label="Пауза" title="Пауза (P)" disabled><svg class="icon" aria-hidden="true"><use id="pauseIcon" href="#i-pause"/></svg></button>
+            </div>
+          </div>
+
+          <div class="board-stage">
+            <div class="board" id="board" role="group" aria-label="Игровое поле 6 на 6" aria-describedby="keyboardHelp">
+              <svg class="board-art" viewBox="0 0 600 600" preserveAspectRatio="none" aria-hidden="true">
+                <defs><linearGradient id="pathGradient" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="600" y2="600"><stop offset="0" stop-color="#ffb16c"/><stop offset="1" stop-color="#f5753c"/></linearGradient></defs>
+                <g id="boardGrid" stroke="#e2e4da" stroke-width="1.8" fill="none"></g>
+                <path id="drawnPath" d="" fill="none" stroke="url(#pathGradient)" stroke-width="43" stroke-linecap="round" stroke-linejoin="round"/>
+                <circle id="pathTip" cx="0" cy="0" r="7" fill="#fff6e9" opacity="0"/>
+                <g id="boardWalls" fill="none" stroke="#363831" stroke-width="6.5" stroke-linecap="round"></g>
+              </svg>
+              <div class="board-cells" id="boardCells" role="grid" aria-label="Соедините числа по порядку"></div>
+            </div>
+            <div class="pause-overlay" id="pauseOverlay" hidden>
+              <div class="pause-symbol"><svg class="icon" aria-hidden="true"><use href="#i-pause"/></svg></div>
+              <h2>Небольшая пауза</h2>
+              <p>Ваш путь никуда не денется.</p>
+              <button type="button" class="button button-primary" id="resumeButton"><svg class="icon" aria-hidden="true"><use href="#i-play"/></svg>Продолжить</button>
+            </div>
+          </div>
+          <p class="sr-only" id="keyboardHelp">Начните с числа 1. Тяните линию мышью или пальцем, либо нажимайте на соседние клетки. С клавиатуры: Enter для начала, стрелки для движения, Backspace для отмены, P для паузы. Соедините числа от 1 до 8 по порядку, заполнив все клетки, не пересекая стены.</p>
+          <div class="game-status">
+            <div class="instruction" id="instruction"><svg class="icon" aria-hidden="true"><use id="instructionIcon" href="#i-hand"/></svg><span id="instructionText" role="status">Потяните от 1, чтобы начать свой путь</span></div>
+            <span class="progress-count" id="progressCount" aria-label="Заполнено клеток">0 / 36</span>
+          </div>
+          <div class="game-controls" id="gameControls">
+            <button type="button" class="control-button" id="undoButton" title="Отменить последний шаг (Backspace)" disabled><svg class="icon" aria-hidden="true"><use href="#i-undo"/></svg>Отменить</button>
+            <button type="button" class="control-button" id="resetButton" disabled><svg class="icon" aria-hidden="true"><use href="#i-reset"/></svg>Заново</button>
+            <button type="button" class="control-button hint-button" id="hintButton"><svg class="icon" aria-hidden="true"><use href="#i-bulb"/></svg>Подсказка</button>
+          </div>
+          <div class="result-controls" id="resultControls" hidden>
+            <button type="button" class="button button-primary" id="nextButton"><svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg>Дальше</button>
+            <button type="button" class="button button-secondary" id="gotoLevels"><svg class="icon" aria-hidden="true"><use href="#i-trophy"/></svg>Уровни</button>
+          </div>
+          <p class="storage-warning" id="storageWarning" role="status" hidden>Браузер не разрешает сохранять данные. Прогресс будет работать только до закрытия вкладки.</p>
+          <p class="vk-note" id="vkNote" hidden></p>
+        </div>
+      </section>
+
+      <aside class="side-column" aria-label="Правила и ваш прогресс">
+        <section class="how-to" id="howTo">
+          <h2 class="how-heading"><button type="button" class="how-toggle" id="howToggle" aria-expanded="true" aria-controls="howContent">Как играть<svg class="icon" aria-hidden="true"><use href="#i-chevron"/></svg></button></h2>
+          <div class="how-content" id="howContent">
+            <div class="rule-steps">
+              <div class="rule-step">
+                <svg class="rule-picture" viewBox="0 0 140 90" role="img" aria-label="Числа 1, 2, 3 соединяются оранжевой линией">
+                  <path d="M24 45h92" stroke="#f69652" stroke-width="15" stroke-linecap="round" class="rule-connect-line"/>
+                  <circle cx="24" cy="45" r="16.5" fill="#292a27" stroke="#f5753c" stroke-width="2"/><circle cx="70" cy="45" r="16.5" fill="#292a27" stroke="#f49b48" stroke-width="2"/><circle cx="116" cy="45" r="16.5" fill="#292a27" stroke="#e6b556" stroke-width="2"/>
+                  <g fill="white" text-anchor="middle" font-family="Golos Text, sans-serif" font-size="14" font-weight="500"><text x="24" y="50">1</text><text x="70" y="50">2</text><text x="116" y="50">3</text></g>
+                </svg>
+                <p>Соединяйте числа<br>по порядку</p>
+              </div>
+              <div class="rule-step">
+                <svg class="rule-picture" viewBox="0 0 140 90" role="img" aria-label="Непрерывная линия заполняет каждую клетку поля">
+                  <defs><linearGradient id="miniGradient"><stop stop-color="#f57643"/><stop offset="1" stop-color="#ecb050"/></linearGradient></defs>
+                  <rect x="35" y="10" width="70" height="70" rx="8" fill="#fff" stroke="#b2b8a6" stroke-width="1.5"/>
+                  <path d="M52.5 11v68M70 11v68M87.5 11v68M36 27.5h68M36 45h68M36 62.5h68" stroke="#e1e5d8" stroke-width="1.2"/>
+                  <path class="mini-route" d="M43.75 18.75v52.5h17.5v-52.5h17.5v52.5h17.5v-52.5" fill="none" stroke="url(#miniGradient)" stroke-width="11.5" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                <p>Заполните<br>каждую клетку</p>
+              </div>
+            </div>
+            <p class="how-note">Без диагоналей и пересечений.<br>Через тёмные стенки проходить нельзя.</p>
+            <button type="button" class="demo-link" id="demoButton">Посмотреть пример<svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></button>
+          </div>
+        </section>
+
+        <section class="streak-block" aria-labelledby="streakTitle">
+          <div class="streak-top">
+            <div class="streak-title">
+              <svg viewBox="0 0 28 32" fill="none" aria-hidden="true"><path d="M15.2 2c1.1 6.5-5.7 7.4-4.6 13.6-2.9-1.2-3.3-3.9-3.3-3.9S2.6 16.2 4.2 23c1.1 4.7 5 7.2 9.8 7.2 6.2 0 10.3-4.7 10.1-10.2-.2-5.8-4.6-9.2-4.6-9.2s.6 4.5-2.3 5.3C20.4 7 15.2 2 15.2 2Z" fill="#fde4cc" stroke="#e78b46" stroke-width="1.4" stroke-linejoin="round"/><path d="M14.3 19s-4.7 4.2-3.2 7.7c.9 2.2 4.7 2.6 6.2.1 1.9-3.2-3-7.8-3-7.8Z" fill="#ee9b57"/></svg>
+              <h2 id="streakTitle">Ваш путь</h2>
+            </div>
+            <span class="streak-value" id="streakValue">0 из 100</span>
+          </div>
+          <p class="streak-description" id="streakDescription">Сто уровней — от быстрых до залипательных.</p>
+          <div class="week" id="weekProgress" aria-label="Ваш прогресс" hidden></div>
+          <button type="button" class="reminder-button" id="levelsButton"><svg class="icon" aria-hidden="true"><use href="#i-trophy"/></svg><span>Выбрать уровень</span></button>
+          <p class="reminder-caption">Прогресс хранится в браузере и в облаке.</p>
+        </section>
+      </aside>
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <div class="footer-thought"><svg class="icon" aria-hidden="true"><use href="#i-spark"/></svg><span>Немного фокуса. И день уже лучше.</span></div>
+    <div class="footer-right"><span>100 уровней: от 4 на 4 до 7 на 7</span><button type="button" class="about-button" id="aboutButton">О проекте</button></div>
+  </footer>
+
+  <dialog class="dialog" id="appDialog" aria-labelledby="modalTitle">
+    <button type="button" class="dialog-close" id="closeDialog" aria-label="Закрыть"><svg class="icon" aria-hidden="true"><use href="#i-close"/></svg></button>
+    <div class="modal-body" id="modalContent"></div>
+  </dialog>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <div class="confetti-layer" id="confettiLayer" aria-hidden="true"></div>
+  <noscript>Для игры нужен JavaScript. Включите его в настройках браузера и обновите страницу.</noscript>
+
+  <script>
+    'use strict';
+    (() => {
+      const $ = (id) => document.getElementById(id);
+      const STORAGE_KEY = 'zigzag.progress.v1';
+      const LEVELS_URL = 'levels.build.json';
+      const NO_ADS_PRODUCT_ID = 'no_ads';
+      const FULLSCREEN_EVERY = 4; // fullscreen-реклама раз в 4–5 пройденных уровней
+      const SVG_NS = 'http://www.w3.org/2000/svg';
+      const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      const dialog = $('appDialog');
+      const board = $('board');
+      let SIZE = 6;
+      let CELL_COUNT = SIZE * SIZE;
+      const pad = (n) => String(n).padStart(2, '0');
+      const icon = (name, extra = '') => `<svg class="icon ${extra}" aria-hidden="true"><use href="#i-${name}"/></svg>`;
+      const escapeHTML = (value) => String(value).replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&#60;', '>': '&#62;', '"': '&quot;', "'": '&#39;' })[character]);
+      let storageAvailable = true;
+      let uiReady = false;
+      let LEVELS = [];
+      let state = loadState();
+      let levelId = Math.min(Math.max(1, state.current || 1), 100);
+      let puzzle = null;
+      let game = null;
+      let paused = false;
+      let adOpen = false;
+      let focusedCell = 0;
+      let cellButtons = [];
+      let pointerId = null;
+      let previousPoint = null;
+      let clockRunning = false;
+      let lastClock = performance.now();
+      let lastSave = Date.now();
+      let saveTimeout;
+      let instructionTimeout;
+      let toastTimeout;
+      let winTimeout;
+      let modalKind = '';
+      let modalOrigin = null;
+      let pendingResult = false;
+
+      // --- Pikabu SDK: все вызовы защищены, без платформы игра работает локально ---
+      const pkb = { sdk: null };
+      // Любой вызов SDK может повесить промис вне платформы — все await через таймаут.
+      function pkbTimeout(promise, ms = 3500) {
+        return Promise.race([promise, new Promise((resolve) => setTimeout(() => resolve(null), ms))]);
+      }
+      async function pkbInit() {
+        try {
+          if (!window.PkbSDK) return false;
+          // Вне платформы init() может никогда не резолвнуться — не даём ему повесить загрузку.
+          pkb.sdk = await pkbTimeout(window.PkbSDK.init());
+          if (!pkb.sdk) { pkb.sdk = null; return false; }
+          try {
+            if (pkb.sdk.ads?.preloader?.isSupported && await pkbTimeout(pkb.sdk.ads.preloader.canShow())) {
+              await pkbTimeout(pkb.sdk.ads.preloader.show());
+            }
+          } catch { /* Preloader недоступен — стартуем как обычно. */ }
+          try { pkb.sdk.once?.('userAuthorized', () => { cloudSync(); }); } catch { /* События необязательны. */ }
+          return true;
+        } catch { return false; }
+      }
+      function pkbStarted() { try { pkb.sdk?.gameStarted(); } catch { /* Локальный режим. */ } }
+      async function withAdPause(fn) {
+        const wasPaused = paused;
+        syncClock();
+        adOpen = true;
+        if (game?.path.length && !game.completed) { paused = true; render(); }
+        try { return await fn(); }
+        catch { return null; }
+        finally {
+          adOpen = false;
+          if (game && !game.completed) paused = wasPaused;
+          syncClock();
+          if (uiReady) render();
+        }
+      }
+      async function pkbFullscreen() {
+        if (state.noAds || !pkb.sdk?.ads?.fullscreen) return false;
+        try {
+          if (!await pkbTimeout(pkb.sdk.ads.fullscreen.canShow())) return false;
+          const result = await withAdPause(() => pkbTimeout(pkb.sdk.ads.fullscreen.show(), 60000));
+          return result?.rendered === true;
+        } catch { return false; }
+      }
+      async function pkbRewarded() {
+        if (!pkb.sdk?.ads?.rewarded) return true; // вне платформы — подсказка бесплатно
+        try {
+          if (!await pkbTimeout(pkb.sdk.ads.rewarded.canShow())) { showToast('Реклама сейчас недоступна. Подсказка — за наш счёт.'); return true; }
+          const result = await withAdPause(() => pkbTimeout(pkb.sdk.ads.rewarded.show(), 60000));
+          if (!result) return false;
+          return result.reward === true;
+        } catch { return false; }
+      }
+      async function pkbRestorePurchases() {
+        if (!pkb.sdk?.store) return;
+        try {
+          const purchases = await pkbTimeout(pkb.sdk.store.getPurchases());
+          if (purchases?.some((p) => p.productId === NO_ADS_PRODUCT_ID)) { state.noAds = true; persist(); }
+        } catch { /* Проверим в следующий раз. */ }
+      }
+      async function pkbBuyNoAds() {
+        if (!pkb.sdk?.store) { showToast('Покупки доступны только на площадке Пикабу Игры.'); return; }
+        try {
+          if (!pkb.sdk.player?.isAuthorized) {
+            await pkbTimeout(pkb.sdk.auth?.openAuthDialog?.(), 60000);
+            if (!pkb.sdk.player?.isAuthorized) { showToast('Без входа покупка не получится.'); return; }
+          }
+          const result = await pkbTimeout(pkb.sdk.store.purchase({ productId: NO_ADS_PRODUCT_ID }), 120000);
+          if (!result || !result.success) { if (result?.reason !== 'USER_CANCELLED') showToast('Покупка не завершена.'); return; }
+          state.noAds = true;
+          persist();
+          renderSide();
+          showToast('Реклама отключена. Спасибо!');
+          if (dialog.open) dialog.close();
+        } catch { showToast('Не получилось открыть оплату.'); }
+      }
+      function cloudSync() { /* Bothost/Supabase — следующим этапом (PIKABU_PLAN.md п.6–7). */ }
+
+      function levelDef(id) { return LEVELS.find((l) => l.id === id) || null; }
+
+      function buildPuzzle(def) {
+        SIZE = def.size;
+        CELL_COUNT = SIZE * SIZE;
+        const numbers = new Map(Object.entries(def.numbers).map(([cell, num]) => [Number(cell), num]));
+        const blocked = new Set(def.walls.map(([a, b]) => edgeKey(a, b)));
+        const neighbors = Array.from({ length: CELL_COUNT }, (_, cell) =>
+          gridNeighbors(cell).filter((neighbor) => !blocked.has(edgeKey(cell, neighbor))));
+        let start = 0, maxNum = 0;
+        numbers.forEach((num, cell) => {
+          if (num === 1) start = cell;
+          if (num > maxNum) maxNum = num;
+        });
+        return { id: def.id, size: SIZE, numbers, walls: def.walls, blocked, neighbors, start, maxNum, hint: def.hint };
+      }
+
+      function doneCount() { return Object.keys(state.done).length; }
+
+      function formatTime(seconds) {
+        const total = Math.max(0, Math.floor(seconds));
+        const minutes = Math.floor(total / 60);
+        return total >= 3600 ? `${pad(Math.floor(total / 3600))}:${pad(minutes % 60)}:${pad(total % 60)}` : `${pad(minutes)}:${pad(total % 60)}`;
+      }
+
+      function plural(number, forms) {
+        const n = Math.abs(number) % 100;
+        return forms[n > 10 && n < 20 ? 2 : n % 10 === 1 ? 0 : n % 10 >= 2 && n % 10 <= 4 ? 1 : 2];
+      }
+
+      function edgeKey(a, b) { return a < b ? `${a}:${b}` : `${b}:${a}`; }
+      function row(cell) { return Math.floor(cell / SIZE); }
+      function col(cell) { return cell % SIZE; }
+      function distance(a, b) { return Math.abs(row(a) - row(b)) + Math.abs(col(a) - col(b)); }
+      function gridNeighbors(cell) {
+        const result = [];
+        if (row(cell) > 0) result.push(cell - SIZE);
+        if (col(cell) < SIZE - 1) result.push(cell + 1);
+        if (row(cell) < SIZE - 1) result.push(cell + SIZE);
+        if (col(cell) > 0) result.push(cell - 1);
+        return result;
+      }
+
+      // Уровни приходят готовыми из levels.build.json (см. gen-levels.mjs).
+      // Браузер ничего не генерирует — только строит puzzle из описания уровня.
+
+      function validPath(path, data, complete = false) {
+        if (!Array.isArray(path) || path.length > CELL_COUNT || (complete && path.length !== CELL_COUNT)) return false;
+        if (!path.length) return !complete;
+        if (path[0] !== data.start) return false;
+        const visited = new Set();
+        let next = 1;
+        for (let i = 0; i < path.length; i++) {
+          const cell = path[i];
+          if (!Number.isInteger(cell) || cell < 0 || cell >= CELL_COUNT || visited.has(cell)) return false;
+          if (i > 0 && !data.neighbors[path[i - 1]].includes(cell)) return false;
+          visited.add(cell);
+          const number = data.numbers.get(cell);
+          if (number) {
+            if (number !== next || (number === data.maxNum && i !== CELL_COUNT - 1)) return false;
+            next++;
+          }
+        }
+        return !complete || next === data.maxNum + 1;
+      }
+
+      function newId() {
+        return globalThis.crypto?.randomUUID?.() || `player-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+      }
+
+      function freshState() {
+        return { version: 1, profile: { id: newId() }, current: 1, done: {}, inprogress: null, noAds: false, sound: true, fsSince: 0 };
+      }
+
+      function sanitizeState(source) {
+        const result = freshState();
+        if (!source || typeof source !== 'object' || source.version !== 1) return result;
+        if (source.profile && typeof source.profile.id === 'string' && /^[\w-]{6,64}$/.test(source.profile.id)) {
+          result.profile.id = source.profile.id;
+        }
+        if (Number.isInteger(source.current)) result.current = Math.min(100, Math.max(1, source.current));
+        if (source.done && typeof source.done === 'object') {
+          for (const [key, value] of Object.entries(source.done)) {
+            const id = Number(key);
+            if (!Number.isInteger(id) || id < 1 || id > 100 || !value || typeof value !== 'object') continue;
+            result.done[id] = {
+              t: Number.isFinite(value.t) ? Math.min(604800, Math.max(1, value.t)) : 0,
+              h: Number.isInteger(value.h) ? Math.min(9999, Math.max(0, value.h)) : 0,
+            };
+          }
+        }
+        result.noAds = source.noAds === true;
+        result.sound = source.sound !== false;
+        if (Number.isInteger(source.fsSince)) result.fsSince = Math.max(0, source.fsSince);
+        const ip = source.inprogress;
+        if (ip && typeof ip === 'object' && Number.isInteger(ip.id) && ip.id >= 1 && ip.id <= 100 && Array.isArray(ip.path)) {
+          result.inprogress = {
+            id: ip.id,
+            path: ip.path.filter((c) => Number.isInteger(c)),
+            seconds: Number.isFinite(ip.seconds) ? Math.min(604800, Math.max(0, ip.seconds)) : 0,
+            hints: Number.isInteger(ip.hints) ? Math.min(9999, Math.max(0, ip.hints)) : 0,
+            hint: Number.isInteger(ip.hint) ? ip.hint : null,
+          };
+        }
+        return result;
+      }
+
+      function loadState() {
+        try {
+          localStorage.setItem(`${STORAGE_KEY}.test`, '1');
+          localStorage.removeItem(`${STORAGE_KEY}.test`);
+          const raw = localStorage.getItem(STORAGE_KEY);
+          if (!raw) return freshState();
+          try {
+            return sanitizeState(JSON.parse(raw));
+          }
+          catch { localStorage.removeItem(STORAGE_KEY); return freshState(); }
+        } catch {
+          storageAvailable = false;
+          return freshState();
+        }
+      }
+
+      function restoreGame(source, data) {
+        const record = { path: [], seconds: 0, hints: 0, hint: null, completed: false, completedAt: null };
+        if (!source || typeof source !== 'object') return record;
+        if (validPath(source.path, data)) record.path = [...source.path];
+        record.seconds = Number.isFinite(source.seconds) ? Math.min(604800, Math.max(0, source.seconds)) : 0;
+        record.hints = Number.isInteger(source.hints) ? Math.min(9999, Math.max(0, source.hints)) : 0;
+        record.completed = validPath(record.path, data, true);
+        record.completedAt = record.completed && typeof source.completedAt === 'string' ? source.completedAt : null;
+        if (record.completed) record.seconds = Math.max(1, Math.ceil(record.seconds));
+        if (Number.isInteger(source.hint) && source.hint >= 0 && source.hint < CELL_COUNT && !record.path.includes(source.hint)) record.hint = source.hint;
+        return record;
+      }
+
+      function persist() {
+        clearTimeout(saveTimeout);
+        if (game) {
+          if (game.completed) { if (state.inprogress?.id === levelId) state.inprogress = null; }
+          else state.inprogress = { id: levelId, path: [...game.path], seconds: game.seconds, hints: game.hints, hint: game.hint };
+        }
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+          storageAvailable = true;
+          lastSave = Date.now();
+        } catch { storageAvailable = false; }
+        if (uiReady) $('storageWarning').hidden = storageAvailable;
+        cloudSync();
+      }
+
+      function queueSave() {
+        clearTimeout(saveTimeout);
+        saveTimeout = setTimeout(persist, 180);
+      }
+
+      function isRunning() { return game.path.length > 0 && !game.completed && !paused && !adOpen && !dialog.open && !document.hidden; }
+
+      function advanceClock(seconds, deltaMilliseconds, running, completed) {
+        return running && !completed ? Math.min(604800, seconds + Math.max(0, deltaMilliseconds) / 1000) : seconds;
+      }
+
+      function syncClock() {
+        const now = performance.now();
+        game.seconds = advanceClock(game.seconds, now - lastClock, clockRunning, game.completed);
+        lastClock = now;
+        clockRunning = isRunning();
+        const text = formatTime(game.seconds);
+        if ($('timerText').textContent !== text) $('timerText').textContent = text;
+      }
+
+      function boardStep() { return 600 / SIZE; }
+
+      function buildBoard() {
+        const grid = $('boardCells');
+        grid.style.gridTemplateColumns = `repeat(${SIZE}, 1fr)`;
+        grid.style.gridTemplateRows = `repeat(${SIZE}, 1fr)`;
+        grid.setAttribute('aria-rowcount', SIZE);
+        grid.setAttribute('aria-colcount', SIZE);
+        grid.setAttribute('aria-label', `Соедините числа от 1 до ${puzzle.maxNum}`);
+        board.setAttribute('aria-label', `Игровое поле ${SIZE} на ${SIZE}`);
+        board.dataset.size = SIZE;
+        const step = boardStep();
+        let gridD = '';
+        for (let i = 1; i < SIZE; i++) gridD += `M${i * step} 0V600M0 ${i * step}H600`;
+        $('boardGrid').replaceChildren();
+        const gridPath = document.createElementNS(SVG_NS, 'path');
+        gridPath.setAttribute('d', gridD);
+        $('boardGrid').append(gridPath);
+        const fragment = document.createDocumentFragment();
+        cellButtons = [];
+        for (let r = 0; r < SIZE; r++) {
+          const rowElement = document.createElement('div');
+          rowElement.setAttribute('role', 'row');
+          rowElement.style.display = 'contents';
+          for (let c = 0; c < SIZE; c++) {
+            const cell = r * SIZE + c;
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'board-cell';
+            button.dataset.cell = cell;
+            button.setAttribute('role', 'gridcell');
+            button.setAttribute('aria-rowindex', r + 1);
+            button.setAttribute('aria-colindex', c + 1);
+            const number = puzzle.numbers.get(cell);
+            if (number) {
+              const marker = document.createElement('span');
+              marker.className = `number${number === 1 ? ' start' : ''}`;
+              marker.textContent = number;
+              button.append(marker);
+            }
+            button.addEventListener('click', (event) => {
+              if (event.detail === 0) {
+                if (moveToward(cell, false)) focusCell(game.path.at(-1) ?? cell);
+              }
+            });
+            button.addEventListener('focus', () => {
+              focusedCell = cell;
+              cellButtons.forEach((item, index) => { item.tabIndex = index === cell ? 0 : -1; });
+            });
+            cellButtons.push(button);
+            rowElement.append(button);
+          }
+          fragment.append(rowElement);
+        }
+        $('boardCells').replaceChildren(fragment);
+        $('boardWalls').replaceChildren();
+        for (const [a, b] of puzzle.walls) {
+          const wall = document.createElementNS(SVG_NS, 'path');
+          const inset = Math.min(6, step * 0.06);
+          const len = step - inset * 2;
+          const d = row(a) === row(b)
+            ? `M${Math.max(col(a), col(b)) * step} ${row(a) * step + inset}v${len}`
+            : `M${col(a) * step + inset} ${Math.max(row(a), row(b)) * step}h${len}`;
+          wall.setAttribute('d', d);
+          $('boardWalls').append(wall);
+        }
+        $('puzzleNumber').textContent = `Уровень ${levelId}`;
+        $('puzzleDate').textContent = `${SIZE} на ${SIZE}`;
+      }
+
+      function pathData(path, size = SIZE, step = 100) {
+        return path.map((cell, index) => `${index ? 'L' : 'M'}${(cell % size + .5) * step} ${(Math.floor(cell / size) + .5) * step}`).join(' ');
+      }
+
+      function nextNumber() {
+        return game.path.reduce((next, cell) => Math.max(next, (puzzle.numbers.get(cell) || 0) + 1), 1);
+      }
+
+      function render() {
+        const visited = new Set(game.path);
+        board.classList.toggle('started', game.path.length > 0);
+        board.classList.toggle('complete', game.completed);
+        board.inert = paused && !game.completed;
+        board.setAttribute('aria-disabled', String(paused || game.completed));
+        $('drawnPath').setAttribute('d', pathData(game.path, SIZE, boardStep()));
+        const last = game.path.at(-1);
+        $('pathTip').setAttribute('opacity', last !== undefined && game.path.length > 1 && !game.completed ? '1' : '0');
+        if (last !== undefined) {
+          $('pathTip').setAttribute('cx', (col(last) + .5) * boardStep());
+          $('pathTip').setAttribute('cy', (row(last) + .5) * boardStep());
+        }
+        cellButtons.forEach((button, cell) => {
+          button.classList.toggle('visited', visited.has(cell));
+          button.classList.toggle('hinted', game.hint === cell && !game.completed);
+          button.tabIndex = cell === focusedCell ? 0 : -1;
+          button.setAttribute('aria-selected', String(visited.has(cell)));
+          const number = puzzle.numbers.get(cell);
+          button.setAttribute('aria-label', `${number ? `Число ${number}. ` : ''}Строка ${row(cell) + 1}, столбец ${col(cell) + 1}${visited.has(cell) ? ', заполнена' : ''}${game.hint === cell ? ', подсказка: следующая клетка' : ''}`);
+        });
+        $('pauseOverlay').hidden = !paused || game.completed;
+        $('pauseButton').disabled = !game.path.length || game.completed;
+        $('pauseButton').setAttribute('aria-label', game.completed ? 'Задача пройдена' : paused ? 'Продолжить игру' : 'Пауза');
+        $('pauseButton').setAttribute('aria-pressed', String(paused));
+        $('pauseIcon').setAttribute('href', game.completed ? '#i-check' : paused ? '#i-play' : '#i-pause');
+        $('undoButton').disabled = game.path.length <= 1 || game.completed || paused;
+        $('resetButton').disabled = !game.path.length || game.completed || paused;
+        $('hintButton').disabled = game.completed || paused;
+        $('gameControls').hidden = game.completed;
+        $('resultControls').hidden = !game.completed;
+        $('progressCount').textContent = `${game.path.length} / ${CELL_COUNT}`;
+        $('progressCount').setAttribute('aria-label', `Заполнено ${game.path.length} из ${CELL_COUNT} клеток`);
+        $('storageWarning').hidden = storageAvailable;
+        clearTimeout(instructionTimeout);
+        defaultInstruction();
+        renderSide();
+      }
+
+      function setInstruction(text, error = false) {
+        if ($('instructionText').textContent !== text) $('instructionText').textContent = text;
+        $('instruction').classList.toggle('error', error);
+      }
+
+      function defaultInstruction() {
+        $('instructionIcon').setAttribute('href', game.completed ? '#i-check' : game.hint !== null ? '#i-bulb' : '#i-hand');
+        if (game.completed) setInstruction('Уровень пройден. Так держать!');
+        else if (paused) setInstruction('Пауза. Продолжите, когда будете готовы.');
+        else if (game.hint !== null) setInstruction('Следующий шаг отмечен оранжевым пунктиром');
+        else if (!game.path.length) setInstruction('Потяните от 1, чтобы начать свой путь');
+        else if (nextNumber() === puzzle.maxNum) setInstruction(`Ещё ${CELL_COUNT - game.path.length} ${plural(CELL_COUNT - game.path.length, ['клетка', 'клетки', 'клеток'])}. Финишируйте на ${puzzle.maxNum}.`);
+        else setInstruction(`Следующее число: ${nextNumber()}. Не пропускайте клетки.`);
+      }
+
+      function invalidMove(cell, message, quiet) {
+        if (!quiet) {
+          clearTimeout(instructionTimeout);
+          setInstruction(message, true);
+          instructionTimeout = setTimeout(defaultInstruction, 2800);
+          const button = cellButtons[cell];
+          if (button) {
+            button.classList.remove('invalid');
+            void button.offsetWidth;
+            button.classList.add('invalid');
+            setTimeout(() => button.classList.remove('invalid'), 420);
+          }
+        }
+        return false;
+      }
+
+      function focusCell(cell) {
+        if (!cellButtons[cell]) return;
+        focusedCell = cell;
+        cellButtons.forEach((button, index) => { button.tabIndex = index === cell ? 0 : -1; });
+        cellButtons[cell].focus({ preventScroll: true });
+      }
+
+      function attemptCell(cell, quiet = false) {
+        if (adOpen || game.completed || paused || dialog.open || !Number.isInteger(cell) || cell < 0 || cell >= CELL_COUNT) return false;
+        if (!game.path.length) {
+          if (cell !== puzzle.start) return invalidMove(cell, 'Начните с оранжевой единицы', quiet);
+          game.path = [cell];
+          syncClock();
+          render();
+          queueSave();
+          return true;
+        }
+        const previous = game.path.indexOf(cell);
+        if (previous >= 0) {
+          if (previous < game.path.length - 1) {
+            game.path.length = previous + 1;
+            game.hint = null;
+            render();
+            queueSave();
+          }
+          return true;
+        }
+        const tail = game.path.at(-1);
+        if (distance(tail, cell) !== 1) return invalidMove(cell, 'Выберите соседнюю клетку, без диагоналей', quiet);
+        if (puzzle.blocked.has(edgeKey(tail, cell))) return invalidMove(cell, 'Здесь стенка. Найдите другой путь.', quiet);
+        const number = puzzle.numbers.get(cell);
+        if (number && number !== nextNumber()) return invalidMove(cell, `Сначала соедините число ${nextNumber()}`, quiet);
+        if (number === puzzle.maxNum && game.path.length !== CELL_COUNT - 1) return invalidMove(cell, 'До финиша нужно заполнить все клетки', quiet);
+        game.path.push(cell);
+        game.hint = null;
+        if (number) {
+          cellButtons[cell].classList.add('just-hit');
+          setTimeout(() => cellButtons[cell]?.classList.remove('just-hit'), 380);
+        }
+        if (game.path.length === CELL_COUNT) finishGame();
+        else { render(); queueSave(); }
+        return true;
+      }
+
+      function moveToward(target, quiet = false) {
+        if (!game.path.length || game.path.includes(target)) return attemptCell(target, quiet);
+        const tail = game.path.at(-1);
+        if (distance(tail, target) === 1) return attemptCell(target, quiet);
+        if (row(tail) !== row(target) && col(tail) !== col(target)) return invalidMove(target, 'Линия идёт только по соседним клеткам', quiet);
+        const step = row(tail) === row(target) ? Math.sign(target - tail) : Math.sign(target - tail) * SIZE;
+        let current = tail;
+        let moved = false;
+        for (let i = 0; i < SIZE && current !== target; i++) {
+          current += step;
+          if (!attemptCell(current, quiet)) break;
+          moved = true;
+          if (game.completed) break;
+        }
+        return moved;
+      }
+
+      function cellAtPoint(x, y) {
+        const bounds = board.getBoundingClientRect();
+        const r = Math.floor((y - bounds.top - 2) / (bounds.height - 4) * SIZE);
+        const c = Math.floor((x - bounds.left - 2) / (bounds.width - 4) * SIZE);
+        return r >= 0 && r < SIZE && c >= 0 && c < SIZE ? r * SIZE + c : null;
+      }
+
+      function stopPointer() {
+        const capturedId = pointerId;
+        pointerId = null;
+        previousPoint = null;
+        if (capturedId !== null) {
+          try { if (board.hasPointerCapture(capturedId)) board.releasePointerCapture(capturedId); } catch { /* Pointer capture can end before pointercancel. */ }
+        }
+      }
+
+      function togglePause(force) {
+        if (!game.path.length || game.completed || dialog.open) return;
+        syncClock();
+        paused = typeof force === 'boolean' ? force : !paused;
+        stopPointer();
+        syncClock();
+        render();
+        persist();
+        if (paused) $('resumeButton').focus({ preventScroll: true });
+        else focusCell(game.path.at(-1));
+      }
+
+      function undo() {
+        if (game.completed || paused || dialog.open || game.path.length <= 1) return;
+        game.path.pop();
+        game.hint = null;
+        render();
+        focusCell(game.path.at(-1));
+        persist();
+      }
+
+      function showReset() {
+        if (game.completed || !game.path.length || paused) return;
+        const attemptLevel = levelId;
+        openDialog('reset', `
+          <div class="modal-symbol">${icon('reset')}</div>
+          <h2 class="modal-title" id="modalTitle" tabindex="-1">Посмотрим по-новому?</h2>
+          <p class="modal-description">Линия очистится, и можно будет выбрать другой путь. Время и использованные подсказки сохранятся.</p>
+          <div class="button-row"><button class="button button-secondary" id="cancelReset">Продолжить</button><button class="button button-primary" id="confirmReset">Начать заново</button></div>
+          <p class="modal-small">Это тот же уровень. Число попыток не ограничено.</p>`);
+        $('cancelReset').onclick = () => dialog.close();
+        $('confirmReset').onclick = () => {
+          if (game.completed || levelId !== attemptLevel) { dialog.close(); return; }
+          game.path = [puzzle.start];
+          game.hint = null;
+          focusedCell = puzzle.start;
+          render();
+          persist();
+          dialog.close();
+          focusCell(focusedCell);
+        };
+      }
+
+      // Общий решатель без эталонного решения: ищет любое продолжение пути.
+      function findContinuation(data, prefix) {
+        const total = SIZE * SIZE;
+        const end = [...data.numbers.entries()].find(([, num]) => num === data.maxNum)?.[0];
+        if (end === undefined || !prefix.length) return null;
+        const visited = new Uint8Array(total);
+        prefix.forEach((cell) => { visited[cell] = 1; });
+        const route = [...prefix];
+        const deadline = performance.now() + 600;
+        let nodes = 0;
+        let answer = null;
+        const next = prefix.reduce((number, cell) => Math.max(number, (data.numbers.get(cell) || 0) + 1), 1);
+
+        function viable(current) {
+          // Степенной прунинг: у каждой непосещённой клетки должно остаться
+          // достаточно свободных соседей, иначе путь уже зашёл в тупик.
+          for (let cell = 0; cell < total; cell++) {
+            if (visited[cell]) continue;
+            let degree = 0;
+            for (const nb of data.neighbors[cell]) if (!visited[nb] || nb === current) degree++;
+            if (degree < (cell === end ? 1 : 2)) return false;
+          }
+          // Связность: все непосещённые достижимы от головы.
+          const seen = new Uint8Array(total);
+          const stack = [current];
+          seen[current] = 1;
+          let count = 0;
+          while (stack.length) {
+            const cell = stack.pop();
+            count++;
+            for (const nb of data.neighbors[cell]) {
+              if (!seen[nb] && !visited[nb]) { seen[nb] = 1; stack.push(nb); }
+            }
+          }
+          return count === total - route.length + 1;
+        }
+
+        function search(current, needed) {
+          if (++nodes > 400000 || answer) return;
+          if ((nodes & 63) === 0 && (performance.now() > deadline || !viable(current))) return;
+          if (route.length === total) {
+            if (current === end && needed === data.maxNum + 1) answer = [...route];
+            return;
+          }
+          const candidates = data.neighbors[current]
+            .filter((cell) => !visited[cell] && (!data.numbers.has(cell) || data.numbers.get(cell) === needed) && (cell !== end || route.length === total - 1))
+            .sort((a, b) => data.neighbors[a].filter((cell) => !visited[cell]).length - data.neighbors[b].filter((cell) => !visited[cell]).length);
+          for (const cell of candidates) {
+            visited[cell] = 1;
+            route.push(cell);
+            search(cell, needed + (data.numbers.has(cell) ? 1 : 0));
+            route.pop();
+            visited[cell] = 0;
+            if (answer || performance.now() > deadline) return;
+          }
+        }
+        if (viable(prefix.at(-1))) search(prefix.at(-1), next);
+        return answer;
+      }
+
+      function grantHint() {
+        // С пустого поля — запечённая подсказка (мгновенно, без перебора).
+        if (!game.path.length && Number.isInteger(puzzle.hint)) {
+          game.hints = Math.min(9999, game.hints + 1);
+          game.hint = puzzle.hint;
+          focusedCell = puzzle.start;
+          render();
+          persist();
+          syncClock();
+          focusCell(focusedCell);
+          return;
+        }
+        const prefix = [...game.path];
+        const continuation = findContinuation(puzzle, prefix);
+        if (!continuation) {
+          showToast('Не вижу продолжения отсюда. Отмените пару шагов и попробуйте снова.');
+          return;
+        }
+        game.path = [...prefix];
+        game.hints = Math.min(9999, game.hints + 1);
+        game.hint = continuation[prefix.length];
+        focusedCell = prefix.at(-1);
+        render();
+        persist();
+        syncClock();
+        focusCell(focusedCell);
+      }
+
+      function showHint() {
+        if (game.completed || paused || adOpen) return;
+        if (game.hint !== null) { showToast('Следующая клетка уже отмечена оранжевым пунктиром.'); return; }
+        if (state.noAds) { grantHint(); return; }
+        openDialog('hint', `
+          <div class="modal-symbol">${icon('bulb')}</div>
+          <h2 class="modal-title" id="modalTitle" tabindex="-1">Небольшой намёк?</h2>
+          <p class="modal-description">Подсветим одну соседнюю клетку, которая поможет найти путь. Дальше снова вы.</p>
+          <div class="button-row"><button class="button button-secondary" id="cancelHint">Я ещё подумаю</button><button class="button button-primary" id="confirmHint">Смотреть и получить шаг</button></div>
+          <p class="modal-small">Нужно посмотреть короткий ролик. Подсказки отмечаются в результате.</p>`);
+        $('cancelHint').onclick = () => dialog.close();
+        $('confirmHint').onclick = async () => {
+          $('confirmHint').disabled = true;
+          const ok = await pkbRewarded();
+          if (dialog.open) dialog.close();
+          if (ok) grantHint();
+          else showToast('Не получилось показать ролик. Попробуйте позже.');
+        };
+      }
+
+      function renderSide() {
+        const done = doneCount();
+        $('streakValue').textContent = `${done} из 100`;
+        $('streakDescription').textContent = game?.completed
+          ? `Уровень ${levelId} пройден. Вперёд, к следующему!`
+          : done ? `Пройдено: ${done}. Текущий — уровень ${levelId}.` : 'Начните с первого уровня — он быстрый.';
+      }
+
+      function finishGame() {
+        if (game.completed || !validPath(game.path, puzzle, true)) return;
+        syncClock();
+        game.completed = true;
+        game.completedAt = new Date().toISOString();
+        game.seconds = Math.max(1, Math.ceil(game.seconds));
+        game.hint = null;
+        paused = false;
+        pendingResult = true;
+        stopPointer();
+        syncClock();
+        const prev = state.done[levelId];
+        state.done[levelId] = {
+          t: prev ? Math.min(prev.t, game.seconds) : game.seconds,
+          h: prev ? Math.min(prev.h, game.hints) : game.hints,
+        };
+        if (levelId < 100) state.current = Math.max(state.current, levelId + 1);
+        state.fsSince += 1;
+        persist();
+        render();
+        celebrate();
+        clearTimeout(winTimeout);
+        winTimeout = setTimeout(() => { if (!dialog.open && pendingResult) showResult(); }, reducedMotion ? 0 : 550);
+      }
+
+      function celebrate() {
+        if (reducedMotion) return;
+        const layer = $('confettiLayer');
+        layer.replaceChildren();
+        const colors = ['#f5753c', '#efb756', '#c7d0b3', '#555e47', '#f7d7ab'];
+        for (let i = 0; i < 44; i++) {
+          const piece = document.createElement('span');
+          piece.className = 'confetti-piece';
+          piece.style.left = `${15 + Math.random() * 70}%`;
+          piece.style.background = colors[i % colors.length];
+          piece.style.borderRadius = i % 3 === 0 ? '50%' : '1px';
+          piece.style.animationDelay = `${Math.random() * .55}s`;
+          piece.style.animationDuration = `${2.1 + Math.random()}s`;
+          piece.style.setProperty('--drift', `${Math.random() * 220 - 110}px`);
+          piece.style.setProperty('--spin', `${Math.random() * 1000 - 500}deg`);
+          layer.append(piece);
+        }
+        setTimeout(() => layer.replaceChildren(), 4000);
+      }
+
+      function openDialog(kind, content, centered = false) {
+        syncClock();
+        stopPointer();
+        if (!dialog.open) modalOrigin = document.activeElement;
+        modalKind = kind;
+        $('modalContent').className = `modal-body${centered ? ' modal-center' : ''}`;
+        $('modalContent').innerHTML = content;
+        if (!dialog.open) {
+          dialog.showModal();
+          document.body.style.overflow = 'hidden';
+        }
+        syncClock();
+        const focusTarget = $('modalContent').querySelector('[data-initial-focus]') || $('modalTitle');
+        focusTarget?.focus({ preventScroll: true });
+      }
+
+      function showResult() {
+        if (!game.completed) return;
+        pendingResult = false;
+        persist();
+        const hasNext = levelId < 100;
+        openDialog('result', `
+          <svg class="result-symbol" viewBox="0 0 82 75" aria-hidden="true"><path d="m41 2 9 7 12-1 4 11 10 7-3 12 3 12-10 7-4 11-12-1-9 7-9-7-12 1-4-11-10-7 3-12-3-12 10-7 4-11 12 1 9-7Z" fill="#ffe6cb"/><circle cx="41" cy="38" r="22" fill="#f5753c"/><path d="m30 38 7 7 15-16" stroke="white" stroke-width="3.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <div class="modal-eyebrow">УРОВЕНЬ ${levelId} ПРОЙДЕН</div>
+          <h2 class="modal-title" id="modalTitle" tabindex="-1">Всё сошлось!</h2>
+          <p class="modal-description">Поле ${SIZE} на ${SIZE}. Одна линия, и голова немного яснее.</p>
+          <div class="result-stats"><div class="result-stat"><strong>${formatTime(game.seconds)}</strong><span>ВАШЕ ВРЕМЯ</span></div><div class="result-stat"><strong>${game.hints}</strong><span>ПОДСКАЗОК</span></div><div class="result-stat"><strong>${doneCount()}</strong><span>${plural(doneCount(), ['УРОВЕНЬ', 'УРОВНЯ', 'УРОВНЕЙ'])} ИЗ 100</span></div></div>
+          ${hasNext ? `<button class="button button-primary button-full" id="resultNext">${icon('arrow')}Дальше</button>` : `<p class="rank-summary">Вы прошли все 100 уровней. Легенда зигзага!</p>`}
+          <button class="button button-secondary button-full result-share" id="resultLevels">${icon('trophy')}Все уровни</button>
+          ${!state.noAds ? `<button class="button button-subtle button-full" id="resultNoAds">Убрать рекламу</button>` : ''}`, true);
+        if ($('resultNext')) $('resultNext').onclick = goNext;
+        $('resultLevels').onclick = showLevels;
+        if ($('resultNoAds')) $('resultNoAds').onclick = showNoAds;
+      }
+
+      function unlockedMax() {
+        return Math.min(100, Math.max(state.current, ...Object.keys(state.done).map(Number), 1));
+      }
+
+      function showLevels() {
+        const max = unlockedMax();
+        openDialog('levels', `
+          <div class="modal-eyebrow">ЗИГЗАГ / 100 УРОВНЕЙ</div>
+          <h2 class="modal-title" id="modalTitle" tabindex="-1">Выберите уровень.</h2>
+          <p class="modal-description">Поле растёт: 4 на 4 в начале, 7 на 7 в конце.</p>
+          <div class="level-grid">${LEVELS.map((l) => {
+            const done = !!state.done[l.id];
+            const locked = l.id > max;
+            return `<button class="level-cell${done ? ' done' : ''}${l.id === levelId ? ' current' : ''}" data-level="${l.id}" ${locked ? 'disabled title="Пройдите предыдущие уровни"' : ''} aria-label="Уровень ${l.id}${done ? ', пройден' : ''}${locked ? ', закрыт' : ''}">${done ? '✓ ' : ''}${l.id}</button>`;
+          }).join('')}</div>
+          ${!state.noAds ? `<button class="button button-subtle button-full" id="levelsNoAds">Убрать рекламу</button>` : ''}
+          <p class="modal-small">Прогресс хранится в браузере и в облаке.</p>`);
+        $('modalContent').querySelectorAll('[data-level]').forEach((button) => {
+          button.onclick = () => { dialog.close(); loadLevel(Number(button.dataset.level)); };
+        });
+        if ($('levelsNoAds')) $('levelsNoAds').onclick = showNoAds;
+      }
+
+      function showNoAds() {
+        openDialog('noads', `
+          <div class="modal-symbol">${icon('close')}</div>
+          <div class="modal-eyebrow">БЕЗ РЕКЛАМЫ</div>
+          <h2 class="modal-title" id="modalTitle" tabindex="-1">Играть чисто.</h2>
+          <p class="modal-description">Одна покупка — и больше никакой рекламы: ни роликов между уровнями, ни ожидания ради подсказки. Подсказки после этого бесплатные.</p>
+          <div class="button-row"><button class="button button-secondary" id="cancelNoAds">Пока нет</button><button class="button button-primary" id="confirmNoAds">Убрать рекламу</button></div>
+          <p class="modal-small">Оплата проходит на площадке Пикабу Игры.</p>`);
+        $('cancelNoAds').onclick = () => dialog.close();
+        $('confirmNoAds').onclick = pkbBuyNoAds;
+      }
+
+      function loadLevel(id) {
+        const def = levelDef(id);
+        if (!def) return;
+        syncClock();
+        persist();
+        clearTimeout(winTimeout);
+        pendingResult = false;
+        stopPointer();
+        levelId = id;
+        state.current = Math.max(state.current, Math.min(id, unlockedMax()));
+        puzzle = buildPuzzle(def);
+        game = (state.inprogress?.id === id) ? restoreGame(state.inprogress, puzzle) : restoreGame(null, puzzle);
+        paused = game.path.length > 0 && !game.completed;
+        focusedCell = game.path.at(-1) ?? puzzle.start;
+        clockRunning = false;
+        lastClock = performance.now();
+        if (dialog.open) dialog.close();
+        buildBoard();
+        render();
+        syncClock();
+        persist();
+        window.scrollTo({ top: 0, behavior: 'auto' });
+      }
+
+      async function goNext() {
+        if (!game.completed || levelId >= 100) { showLevels(); return; }
+        if (dialog.open) dialog.close();
+        if (state.fsSince >= FULLSCREEN_EVERY && !state.noAds) {
+          state.fsSince = 0;
+          persist();
+          await pkbFullscreen();
+        }
+        loadLevel(levelId + 1);
+      }
+
+      function showTutorial(step = 0) {
+        const tutorialPath = [0, 4, 8, 12, 13, 9, 5, 1, 2, 6, 10, 14, 15, 11, 7, 3];
+        const route = step === 0 ? tutorialPath.slice(0, 6) : tutorialPath;
+        const labels = ['Сначала 1, потом 2...', 'Одна линия на всё поле', 'Можно передумать'];
+        const descriptions = ['Начните с единицы и соединяйте числа по порядку. Тяните линию или нажимайте на соседние клетки.', 'Перед финишем заполните каждую клетку. Не ходите по диагонали и не пересекайте тёмные стенки.', 'Проведите назад по линии или нажмите «Отменить». А кнопка «Заново» поможет взглянуть на задачу свежим взглядом.'];
+        const markers = [0, 5, 10, 15].map((position, index) => {
+          const cell = tutorialPath[position];
+          const x = (cell % 4 + .5) * 60, y = (Math.floor(cell / 4) + .5) * 60;
+          return `<circle cx="${x}" cy="${y}" r="14" fill="${index ? '#292a27' : '#f5753c'}"/><text x="${x}" y="${y + 5}" text-anchor="middle" fill="white" font-size="13" font-family="Golos Text, sans-serif">${index + 1}</text>`;
+        }).join('');
+        openDialog('tutorial', `
+          <div class="modal-eyebrow">КАК ИГРАТЬ / ${step + 1} ИЗ 3</div>
+          <h2 class="modal-title" id="modalTitle" tabindex="-1">Всего одна линия.</h2>
+          <svg class="tutorial-board ${step === 2 ? 'undo-demo' : 'playing'}" viewBox="-2 -2 244 244" role="img" aria-label="${labels[step]}"><rect width="240" height="240" rx="9" fill="white" stroke="#41473a" stroke-width="2"/><path d="M60 0v240M120 0v240M180 0v240M0 60h240M0 120h240M0 180h240" fill="none" stroke="#dde3d1" stroke-width="1"/><path class="tutorial-path" pathLength="680" d="${pathData(route, 4, 60)}" fill="none" stroke="#f89553" stroke-width="24" stroke-linecap="round" stroke-linejoin="round"/><path d="M60 64v52" stroke="#41473a" stroke-width="3" stroke-linecap="round"/>${markers}</svg>
+          <h3 class="tutorial-step-title">${labels[step]}</h3><p class="tutorial-step-text">${descriptions[step]}</p>
+          <div class="tutorial-pagination" aria-label="Шаги инструкции">${[0, 1, 2].map((index) => `<button class="${step === index ? 'active' : ''}" data-tutorial-step="${index}" aria-label="Шаг ${index + 1}" ${step === index ? 'aria-current="step"' : ''}></button>`).join('')}</div>
+          <div class="button-row"><button class="button button-secondary" id="replayTutorial">${icon('reset')}Ещё раз</button><button class="button button-primary" id="nextTutorial">${step === 2 ? 'Всё понятно' : 'Дальше'}${icon('arrow')}</button></div>
+          <p class="modal-small">Это только пример. Ваш уровень остаётся на месте.</p>`, true);
+        $('replayTutorial').onclick = () => showTutorial(step);
+        $('nextTutorial').onclick = () => { if (step < 2) showTutorial(step + 1); else { dialog.close(); if (!paused) focusCell(game.path.at(-1) ?? puzzle.start); } };
+        $('modalContent').querySelectorAll('[data-tutorial-step]').forEach((button) => { button.onclick = () => showTutorial(Number(button.dataset.tutorialStep)); });
+      }
+
+      function showAbout() {
+        openDialog('about', `<div class="modal-eyebrow">НЕМНОГО ВРЕМЕНИ ДЛЯ СЕБЯ</div><h2 class="modal-title" id="modalTitle" tabindex="-1">Большое в маленьком.</h2><div class="about-copy"><p>Зигзаг помогает ненадолго переключиться. Соединяйте числа по порядку одной линией и заполняйте все клетки поля.</p><p>Сто уровней: поле растёт от 4 на 4 до 7 на 7. Попыток сколько угодно. Прогресс хранится в браузере и в облаке.</p><p>Клавиатура: стрелки для движения, <kbd>Backspace</kbd> для отмены и <kbd>P</kbd> для паузы. Мышью и пальцем можно тянуть линию или нажимать на клетки.</p></div><button class="button button-primary button-full" id="aboutDone">Вернуться к своей линии</button>`);
+        $('aboutDone').onclick = () => dialog.close();
+      }
+
+      function showToast(message) {
+        clearTimeout(toastTimeout);
+        $('toast').classList.remove('visible');
+        if (dialog.open) {
+          let feedback = $('dialogFeedback');
+          if (!feedback) {
+            feedback = document.createElement('p');
+            feedback.id = 'dialogFeedback';
+            feedback.className = 'form-status success';
+            feedback.setAttribute('role', 'status');
+            $('modalContent').append(feedback);
+          }
+          feedback.textContent = message;
+          toastTimeout = setTimeout(() => { if (feedback.isConnected) feedback.remove(); }, 6500);
+          return;
+        }
+        $('toast').textContent = message;
+        $('toast').classList.add('visible');
+        toastTimeout = setTimeout(() => $('toast').classList.remove('visible'), 4400);
+      }
+
+      board.addEventListener('pointerdown', (event) => {
+        if ((event.pointerType === 'mouse' && event.button !== 0) || pointerId !== null || game.completed || paused || dialog.open) return;
+        const cell = cellAtPoint(event.clientX, event.clientY);
+        if (cell === null) return;
+        event.preventDefault();
+        pointerId = event.pointerId;
+        previousPoint = { x: event.clientX, y: event.clientY };
+        try { board.setPointerCapture(pointerId); } catch { /* Tapping still works without pointer capture. */ }
+        if (moveToward(cell)) focusCell(game.path.at(-1) ?? cell);
+      });
+      board.addEventListener('pointermove', (event) => {
+        if (pointerId !== event.pointerId || !previousPoint || paused || game.completed) return;
+        event.preventDefault();
+        const from = previousPoint;
+        const to = { x: event.clientX, y: event.clientY };
+        const spacing = board.getBoundingClientRect().width / SIZE * .35;
+        const samples = Math.min(80, Math.max(1, Math.ceil(Math.hypot(to.x - from.x, to.y - from.y) / spacing)));
+        for (let i = 1; i <= samples; i++) {
+          const cell = cellAtPoint(from.x + (to.x - from.x) * i / samples, from.y + (to.y - from.y) * i / samples);
+          if (cell !== null) moveToward(cell, true);
+          if (game.completed || paused) break;
+        }
+        if (pointerId !== null) previousPoint = to;
+      });
+      ['pointerup', 'pointercancel', 'lostpointercapture'].forEach((name) => board.addEventListener(name, (event) => { if (pointerId === event.pointerId) { stopPointer(); persist(); } }));
+      board.addEventListener('keydown', (event) => {
+        if (dialog.open || paused) return;
+        const directions = { ArrowUp: -SIZE, ArrowDown: SIZE, ArrowLeft: -1, ArrowRight: 1 };
+        if (event.key in directions) {
+          event.preventDefault();
+          const source = game.path.length && !game.completed ? game.path.at(-1) : focusedCell;
+          const target = source + directions[event.key];
+          if (target < 0 || target >= CELL_COUNT || distance(source, target) !== 1) return;
+          if (!game.path.length || game.completed) focusCell(target);
+          else if (attemptCell(target)) focusCell(game.path.at(-1));
+        } else if (event.key === 'Backspace' || (event.key.toLowerCase() === 'z' && (event.ctrlKey || event.metaKey))) {
+          event.preventDefault();
+          undo();
+        }
+      });
+      document.addEventListener('keydown', (event) => {
+        if (dialog.open || /^(INPUT|TEXTAREA|SELECT)$/.test(event.target.tagName)) return;
+        if (event.code === 'KeyP' && !event.ctrlKey && !event.metaKey && !event.altKey) { event.preventDefault(); togglePause(); }
+      });
+      $('pauseButton').onclick = () => togglePause();
+      $('resumeButton').onclick = () => togglePause(false);
+      $('undoButton').onclick = undo;
+      $('resetButton').onclick = showReset;
+      $('hintButton').onclick = showHint;
+      $('nextButton').onclick = goNext;
+      $('gotoLevels').onclick = showLevels;
+      $('navLevels').onclick = showLevels;
+      $('levelsButton').onclick = showLevels;
+      $('navRules').onclick = () => showTutorial();
+      $('demoButton').onclick = () => showTutorial();
+      $('aboutButton').onclick = showAbout;
+      $('homeLink').onclick = (event) => { event.preventDefault(); window.scrollTo({ top: 0, behavior: reducedMotion ? 'auto' : 'smooth' }); };
+      $('howToggle').onclick = () => {
+        const expanded = $('howToggle').getAttribute('aria-expanded') === 'true';
+        $('howToggle').setAttribute('aria-expanded', String(!expanded));
+        $('howContent').hidden = expanded;
+      };
+      $('closeDialog').onclick = () => dialog.close();
+      dialog.addEventListener('click', (event) => {
+        if (event.target !== dialog) return;
+        const bounds = dialog.getBoundingClientRect();
+        if (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom) dialog.close();
+      });
+      dialog.addEventListener('close', () => {
+        if (dialog.open) return;
+        const returnToBoard = ['hint', 'reset', 'tutorial', 'levels', 'noads'].includes(modalKind);
+        modalKind = '';
+        document.body.style.overflow = '';
+        syncClock();
+        if (paused && !game.completed) $('resumeButton').focus({ preventScroll: true });
+        else if (returnToBoard && !game.completed) focusCell(game.path.at(-1) ?? puzzle.start);
+        else if (game.completed && modalOrigin?.closest('#board')) $('nextButton').focus({ preventScroll: true });
+        else if (modalOrigin?.isConnected && !modalOrigin.closest('[hidden]') && !modalOrigin.disabled) modalOrigin.focus({ preventScroll: true });
+        if (pendingResult && game.completed) setTimeout(() => { if (pendingResult && !dialog.open) showResult(); }, 80);
+      });
+      document.addEventListener('visibilitychange', () => {
+        syncClock();
+        if (document.hidden && game.path.length && !game.completed) {
+          paused = true;
+          stopPointer();
+          syncClock();
+          render();
+          persist();
+        } else if (!document.hidden) { syncClock(); }
+      });
+      window.addEventListener('pagehide', () => { syncClock(); persist(); });
+      window.addEventListener('beforeunload', () => { syncClock(); persist(); });
+      window.addEventListener('storage', (event) => {
+        if (event.key !== STORAGE_KEY || !event.newValue) return;
+        try {
+          const incoming = sanitizeState(JSON.parse(event.newValue));
+          if (incoming.profile.id !== state.profile.id) return;
+          state.done = incoming.done;
+          state.current = incoming.current;
+          state.noAds = incoming.noAds;
+          if (game?.completed) render();
+          else {
+            const remote = incoming.inprogress?.id === levelId ? restoreGame(incoming.inprogress, puzzle) : null;
+            if (remote && remote.path.length > game.path.length) {
+              syncClock();
+              game = remote;
+              paused = false;
+              stopPointer();
+              syncClock();
+              render();
+              showToast('Прогресс обновлён из другой вкладки.');
+            } else renderSide();
+          }
+          if (dialog.open && modalKind === 'levels') showLevels();
+        } catch { /* Ignore incomplete or unrelated storage events. */ }
+      });
+
+      function selfTest() {
+        const failures = [];
+        let checks = 0;
+        function check(condition, message) { checks++; if (!condition) failures.push(message); }
+        // Пак уровней: 100 штук, лесенка 10/25/35/30, id уникальны
+        check(Array.isArray(LEVELS) && LEVELS.length === 100, 'Levels pack has 100 levels');
+        check(new Set(LEVELS.map((l) => l.id)).size === 100, 'Level ids are unique');
+        const bySize = (size) => LEVELS.filter((l) => l.size === size).length;
+        check(bySize(4) === 10 && bySize(5) === 25 && bySize(6) === 35 && bySize(7) === 30, 'Size ladder is 10/25/35/30');
+        const WP = { 4: [4, 4], 5: [5, 6], 6: [7, 8], 7: [8, 9] };
+        for (const def of LEVELS) {
+          const nums = Object.entries(def.numbers);
+          const [lo, hi] = WP[def.size] || [4, 9];
+          if (nums.length < lo || nums.length > hi) { check(false, `Waypoint count in range: level ${def.id}`); break; }
+          const values = nums.map(([, n]) => n).sort((a, b) => a - b);
+          if (!values.every((n, i) => n === i + 1)) { check(false, `Waypoints are 1..N: level ${def.id}`); break; }
+          if (!def.walls.every(([a, b]) => Number.isInteger(a) && Number.isInteger(b) && a !== b && Math.abs(Math.floor(a / def.size) - Math.floor(b / def.size)) + Math.abs((a % def.size) - (b % def.size)) === 1)) { check(false, `Walls are valid edges: level ${def.id}`); break; }
+        }
+        checks++;
+        // Текущий уровень собран корректно
+        check(puzzle && puzzle.size === SIZE && CELL_COUNT === SIZE * SIZE, 'Puzzle matches board size');
+        check(puzzle.numbers.get(puzzle.start) === 1, 'Start cell holds number 1');
+        // validPath: базовые инварианты на текущем уровне
+        const tail = puzzle.neighbors[puzzle.start][0];
+        check(!validPath([], puzzle, true) && validPath([], puzzle), 'An empty board is not a completed level');
+        check(!validPath([tail === 0 ? 1 : 0], puzzle), 'Starting from a wrong cell is rejected');
+        check(!validPath([puzzle.start, puzzle.start], puzzle), 'No repeated cells');
+        // Таймер
+        check(formatTime(91) === '01:31' && formatTime(3601) === '01:00:01', 'Timer formatting');
+        check(advanceClock(91, 3000, true, true) === 91, 'Completed timer is immutable');
+        check(advanceClock(91, 3000, false, false) === 91, 'Paused timer does not advance');
+        check(advanceClock(91, 2500, true, false) === 93.5, 'Active timer uses elapsed time');
+        check(restoreGame({ path: [-1], seconds: -20, hints: -4 }, puzzle).path.length === 0, 'Corrupted progress is discarded');
+        // Рендер
+        check(cellButtons.length === CELL_COUNT && $('boardCells').querySelectorAll('[role="row"]').length === SIZE, 'Accessible grid matches level size');
+        check($('boardCells').querySelectorAll('.number').length === puzzle.numbers.size, 'All waypoint markers are rendered');
+        check($('pathGradient').getAttribute('gradientUnits') === 'userSpaceOnUse', 'A straight first segment has a visible gradient');
+        const ids = [...document.querySelectorAll('[id]')].map((element) => element.id);
+        check(new Set(ids).size === ids.length, 'DOM identifiers are unique');
+        check([...document.querySelectorAll('use[href^="#"]')].every((element) => $(element.getAttribute('href').slice(1))), 'SVG icon references resolve');
+        return { checks, passed: checks - failures.length, failures };
+      }
+
+      async function boot() {
+        await pkbInit(); // внутри: preloader до gameStarted (только мобайл)
+        let res;
+        try { res = await fetch(LEVELS_URL, { cache: 'no-store' }); } catch { res = null; }
+        if (!res?.ok) {
+          $('puzzleNumber').textContent = 'Нет уровней';
+          setInstruction('Не загрузился levels.build.json. Откройте игру через локальный сервер: python -m http.server', true);
+          pkbStarted();
+          return;
+        }
+        try {
+          LEVELS = await res.json();
+          if (!Array.isArray(LEVELS) || LEVELS.length !== 100) throw new Error('bad pack');
+        } catch {
+          setInstruction('Файл уровней повреждён. Пересоберите его: node gen-levels.mjs && node build-levels.mjs', true);
+          pkbStarted();
+          return;
+        }
+        if (!levelDef(levelId)) levelId = 1;
+        puzzle = buildPuzzle(levelDef(levelId));
+        game = (state.inprogress?.id === levelId) ? restoreGame(state.inprogress, puzzle) : restoreGame(null, puzzle);
+        paused = game.path.length > 0 && !game.completed;
+        focusedCell = game.path.at(-1) ?? puzzle.start;
+        buildBoard();
+        uiReady = true;
+        render();
+        syncClock();
+        persist();
+        await pkbRestorePurchases();
+        if (uiReady) renderSide();
+        pkbStarted();
+        if (pendingResult && !dialog.open) setTimeout(() => { if (pendingResult && !dialog.open) showResult(); }, 400);
+      }
+      setInterval(() => {
+        if (!uiReady || !game) return;
+        syncClock();
+        if (clockRunning && Date.now() - lastSave > 2500) persist();
+      }, 250);
+      // Pure diagnostics are available from the console without changing progress or unlocking a level.
+      window.zigzagDiagnostics = selfTest;
+      boot();
+      if (new URLSearchParams(location.search).has('selftest')) {
+        const wait = setInterval(() => {
+          if (!uiReady) return;
+          clearInterval(wait);
+          try {
+            const report = selfTest();
+            console.info('Zigzag self-test:', report);
+            showToast(report.failures.length ? `Проверки: ${report.passed} из ${report.checks}. Подробности в консоли.` : `Все ${report.checks} проверок пройдены.`);
+          } catch (error) { console.error('Zigzag self-test failed:', error); }
+        }, 200);
+      }
+    })();
+  </script>
+</body>
+</html>
