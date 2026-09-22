@@ -81,6 +81,7 @@
     .board[data-size="5"] .number { width: 36px; height: 36px; font-size: 16px; }
     .board[data-size="7"] .number { width: 28px; height: 28px; font-size: 12px; }
     .board[data-size="7"] #drawnPath { stroke-width: 34; }
+    .board[data-masked="1"] { border-color: transparent; }
     .level-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin: 20px 0; }
     .level-cell { min-height: 44px; border: 1px solid var(--line); border-radius: 8px; background: #fff; font-size: 13px; font-variant-numeric: tabular-nums; display: grid; place-items: center; transition: background .2s, border-color .2s; }
     .level-cell:hover:not(:disabled) { border-color: var(--orange); background: var(--orange-soft); }
@@ -874,6 +875,7 @@
         grid.setAttribute('aria-label', `Соедините числа от 1 до ${puzzle.maxNum}`);
         board.setAttribute('aria-label', `Игровое поле ${SIZE} на ${SIZE}`);
         board.dataset.size = SIZE;
+        board.dataset.masked = puzzle.mask ? '1' : '';
         const step = boardStep();
         let gridD = '';
         for (let i = 1; i < SIZE; i++) gridD += `M${i * step} 0V600M0 ${i * step}H600`;
@@ -922,15 +924,15 @@
           fragment.append(rowElement);
         }
         $('boardCells').replaceChildren(fragment);
-        // Закрашиваем вырезы цветом фона, чтобы поле читалось фигурой
-        $('boardHoles')?.replaceChildren();
+        // Закрашиваем вырезы цветом фона, чтобы поле читалось фигурой.
+        // Слой — сразу над сеткой, но под путём и стенками.
         if (puzzle.mask) {
           let holes = $('boardHoles');
           if (!holes) {
             holes = document.createElementNS(SVG_NS, 'g');
             holes.id = 'boardHoles';
             holes.setAttribute('fill', '#f7f7f2');
-            $('board').querySelector('.board-art').append(holes);
+            $('boardGrid').after(holes);
           } else holes.replaceChildren();
           for (let cell = 0; cell < SIZE * SIZE; cell++) {
             if (puzzle.mask.has(cell)) continue;
@@ -941,6 +943,23 @@
             rect.setAttribute('height', step);
             holes.append(rect);
           }
+          // Контур фигуры: стороны клеток, выходящие наружу
+          const edge = document.createElementNS(SVG_NS, 'path');
+          let edgeD = '';
+          const has = (cell) => cell >= 0 && cell < SIZE * SIZE && puzzle.mask.has(cell);
+          for (const cell of puzzle.mask) {
+            const r = row(cell), c = col(cell);
+            if (r === 0 || !has(cell - SIZE)) edgeD += `M${c * step} ${r * step}h${step}`;
+            if (r === SIZE - 1 || !has(cell + SIZE)) edgeD += `M${c * step} ${(r + 1) * step}h${step}`;
+            if (c === 0 || !has(cell - 1)) edgeD += `M${c * step} ${r * step}v${step}`;
+            if (c === SIZE - 1 || !has(cell + 1)) edgeD += `M${(c + 1) * step} ${r * step}v${step}`;
+          }
+          edge.setAttribute('d', edgeD);
+          edge.setAttribute('fill', 'none');
+          edge.setAttribute('stroke', '#363831');
+          edge.setAttribute('stroke-width', '4');
+          edge.setAttribute('stroke-linecap', 'square');
+          holes.append(edge);
         }
         $('boardWalls').replaceChildren();
         for (const [a, b] of puzzle.walls) {
