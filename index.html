@@ -1201,6 +1201,7 @@
           return;
         }
         // С неверного хвоста продолжения нет — шагаем назад, пока не найдётся.
+        const before = game.path.length;
         let prefix = [...game.path];
         let continuation = findContinuation(puzzle, prefix);
         while (!continuation && prefix.length > 1) {
@@ -1222,6 +1223,7 @@
           persist();
           syncClock();
           focusCell(focusedCell);
+          showToast('Там был тупик — вернул линию к старту.');
           return;
         }
         game.path = [...prefix];
@@ -1232,6 +1234,8 @@
         persist();
         syncClock();
         focusCell(focusedCell);
+        const removed = before - prefix.length;
+        if (removed > 0) showToast(`Там был тупик — откатил на ${removed} ${plural(removed, ['клетку', 'клетки', 'клеток'])}.`);
       }
 
       function showHint() {
@@ -1340,6 +1344,8 @@
         if ($('resultNext')) $('resultNext').onclick = goNext;
         $('resultLevels').onclick = showLevels;
         if ($('resultNoAds')) $('resultNoAds').onclick = showNoAds;
+        // FR-1: Enter сразу жмёт «Дальше» — фокус на кнопке при открытии окна.
+        if ($('resultNext')) $('resultNext').focus({ preventScroll: true });
       }
 
       function unlockedMax() {
