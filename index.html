@@ -1018,7 +1018,10 @@
         grid.setAttribute('aria-label', `Соедините числа от 1 до ${puzzle.maxNum}`);
         board.setAttribute('aria-label', `Игровое поле ${SIZE} на ${SIZE}`);
         board.dataset.size = SIZE;
-        board.dataset.masked = puzzle.mask ? '1' : '';
+        if (puzzle.mask) board.dataset.masked = '1';
+        else delete board.dataset.masked;
+        // Слой дырок всегда пересоздаём: иначе залипает с прошлого уровня (BUG залипания L30→31+)
+        $('boardHoles')?.remove();
         const step = boardStep();
         let gridD = '';
         for (let i = 1; i < SIZE; i++) gridD += `M${i * step} 0V600M0 ${i * step}H600`;
@@ -1070,13 +1073,10 @@
         // Закрашиваем вырезы цветом фона, чтобы поле читалось фигурой.
         // Слой — сразу над сеткой, но под путём и стенками.
         if (puzzle.mask) {
-          let holes = $('boardHoles');
-          if (!holes) {
-            holes = document.createElementNS(SVG_NS, 'g');
-            holes.id = 'boardHoles';
-            holes.setAttribute('fill', '#f7f7f2');
-            $('boardGrid').after(holes);
-          } else holes.replaceChildren();
+          const holes = document.createElementNS(SVG_NS, 'g');
+          holes.id = 'boardHoles';
+          holes.setAttribute('fill', '#f7f7f2');
+          $('boardGrid').after(holes);
           for (let cell = 0; cell < SIZE * SIZE; cell++) {
             if (puzzle.mask.has(cell)) continue;
             const rect = document.createElementNS(SVG_NS, 'rect');
