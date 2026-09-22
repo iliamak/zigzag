@@ -693,17 +693,20 @@
 
       function buildPuzzle(def) {
         SIZE = def.size;
-        CELL_COUNT = SIZE * SIZE;
+        const maskSet = def.mask ? new Set(def.mask) : null;
+        CELL_COUNT = maskSet ? maskSet.size : SIZE * SIZE;
         const numbers = new Map(Object.entries(def.numbers).map(([cell, num]) => [Number(cell), num]));
         const blocked = new Set(def.walls.map(([a, b]) => edgeKey(a, b)));
-        const neighbors = Array.from({ length: CELL_COUNT }, (_, cell) =>
-          gridNeighbors(cell).filter((neighbor) => !blocked.has(edgeKey(cell, neighbor))));
+        const neighbors = Array.from({ length: SIZE * SIZE }, (_, cell) => {
+          if (maskSet && !maskSet.has(cell)) return [];
+          return gridNeighbors(cell).filter((neighbor) => (!maskSet || maskSet.has(neighbor)) && !blocked.has(edgeKey(cell, neighbor)));
+        });
         let start = 0, maxNum = 0;
         numbers.forEach((num, cell) => {
           if (num === 1) start = cell;
           if (num > maxNum) maxNum = num;
         });
-        return { id: def.id, size: SIZE, numbers, walls: def.walls, blocked, neighbors, start, maxNum, hint: def.hint };
+        return { id: def.id, size: SIZE, cellCount: CELL_COUNT, mask: maskSet, numbers, walls: def.walls, blocked, neighbors, start, maxNum, hint: def.hint };
       }
 
       function doneCount() { return Object.keys(state.done).length; }
@@ -743,7 +746,7 @@
         let next = 1;
         for (let i = 0; i < path.length; i++) {
           const cell = path[i];
-          if (!Number.isInteger(cell) || cell < 0 || cell >= CELL_COUNT || visited.has(cell)) return false;
+          if (!Number.isInteger(cell) || cell < 0 || cell >= SIZE * SIZE || visited.has(cell)) return false;
           if (i > 0 && !data.neighbors[path[i - 1]].includes(cell)) return false;
           visited.add(cell);
           const number = data.numbers.get(cell);
@@ -878,6 +881,7 @@
         const gridPath = document.createElementNS(SVG_NS, 'path');
         gridPath.setAttribute('d', gridD);
         $('boardGrid').append(gridPath);
+        const inField = (cell) => !puzzle.mask || puzzle.mask.has(cell);
         const fragment = document.createDocumentFragment();
         cellButtons = [];
         for (let r = 0; r < SIZE; r++) {
@@ -886,10 +890,13 @@
           rowElement.style.display = 'contents';
           for (let c = 0; c < SIZE; c++) {
             const cell = r * SIZE + c;
+            if (!inField(cell)) continue; // дырка/вырез: кнопки нет
             const button = document.createElement('button');
             button.type = 'button';
             button.className = 'board-cell';
             button.dataset.cell = cell;
+            button.style.gridRow = `${r + 1}`;
+            button.style.gridColumn = `${c + 1}`;
             button.setAttribute('role', 'gridcell');
             button.setAttribute('aria-rowindex', r + 1);
             button.setAttribute('aria-colindex', c + 1);
@@ -909,12 +916,32 @@
               focusedCell = cell;
               cellButtons.forEach((item, index) => { item.tabIndex = index === cell ? 0 : -1; });
             });
-            cellButtons.push(button);
+            cellButtons[cell] = button;
             rowElement.append(button);
           }
           fragment.append(rowElement);
         }
         $('boardCells').replaceChildren(fragment);
+        // Закрашиваем вырезы цветом фона, чтобы поле читалось фигурой
+        $('boardHoles')?.replaceChildren();
+        if (puzzle.mask) {
+          let holes = $('boardHoles');
+          if (!holes) {
+            holes = document.createElementNS(SVG_NS, 'g');
+            holes.id = 'boardHoles';
+            holes.setAttribute('fill', '#f7f7f2');
+            $('board').querySelector('.board-art').append(holes);
+          } else holes.replaceChildren();
+          for (let cell = 0; cell < SIZE * SIZE; cell++) {
+            if (puzzle.mask.has(cell)) continue;
+            const rect = document.createElementNS(SVG_NS, 'rect');
+            rect.setAttribute('x', col(cell) * step);
+            rect.setAttribute('y', row(cell) * step);
+            rect.setAttribute('width', step);
+            rect.setAttribute('height', step);
+            holes.append(rect);
+          }
+        }
         $('boardWalls').replaceChildren();
         for (const [a, b] of puzzle.walls) {
           const wall = document.createElementNS(SVG_NS, 'path');
@@ -1016,7 +1043,8 @@
       }
 
       function attemptCell(cell, quiet = false) {
-        if (adOpen || game.completed || paused || dialog.open || !Number.isInteger(cell) || cell < 0 || cell >= CELL_COUNT) return false;
+        if (adOpen || game.completed || paused || dialog.open || !Number.isInteger(cell) || cell < 0 || cell >= SIZE * SIZE) return false;
+        if (puzzle.mask && !puzzle.mask.has(cell)) return invalidMove(cell, 'Сюда нельзя — здесь вырез.', quiet);
         if (!game.path.length) {
           if (cell !== puzzle.start) return invalidMove(cell, 'Начните с оранжевой единицы', quiet);
           game.path = [cell];
@@ -1130,10 +1158,12 @@
 
       // Общий решатель без эталонного решения: ищет любое продолжение пути.
       function findContinuation(data, prefix) {
-        const total = SIZE * SIZE;
+        const total = data.cellCount || CELL_COUNT;
+        const span = data.size * data.size; // массивы — по id клеток (дырки тоже)
+        const inField = (cell) => !data.mask || data.mask.has(cell);
         const end = [...data.numbers.entries()].find(([, num]) => num === data.maxNum)?.[0];
         if (end === undefined || !prefix.length) return null;
-        const visited = new Uint8Array(total);
+        const visited = new Uint8Array(span);
         prefix.forEach((cell) => { visited[cell] = 1; });
         const route = [...prefix];
         const deadline = performance.now() + 600;
@@ -1144,14 +1174,14 @@
         function viable(current) {
           // Степенной прунинг: у каждой непосещённой клетки должно остаться
           // достаточно свободных соседей, иначе путь уже зашёл в тупик.
-          for (let cell = 0; cell < total; cell++) {
-            if (visited[cell]) continue;
+          for (let cell = 0; cell < span; cell++) {
+            if (!inField(cell) || visited[cell]) continue;
             let degree = 0;
             for (const nb of data.neighbors[cell]) if (!visited[nb] || nb === current) degree++;
             if (degree < (cell === end ? 1 : 2)) return false;
           }
           // Связность: все непосещённые достижимы от головы.
-          const seen = new Uint8Array(total);
+          const seen = new Uint8Array(span);
           const stack = [current];
           seen[current] = 1;
           let count = 0;
@@ -1493,7 +1523,7 @@
           event.preventDefault();
           const source = game.path.length && !game.completed ? game.path.at(-1) : focusedCell;
           const target = source + directions[event.key];
-          if (target < 0 || target >= CELL_COUNT || distance(source, target) !== 1) return;
+          if (target < 0 || target >= SIZE * SIZE || distance(source, target) !== 1) return;
           if (!game.path.length || game.completed) focusCell(target);
           else if (attemptCell(target)) focusCell(game.path.at(-1));
         } else if (event.key === 'Backspace' || (event.key.toLowerCase() === 'z' && (event.ctrlKey || event.metaKey))) {
@@ -1598,8 +1628,24 @@
         }
         checks++;
         // Текущий уровень собран корректно
-        check(puzzle && puzzle.size === SIZE && CELL_COUNT === SIZE * SIZE, 'Puzzle matches board size');
+        check(puzzle && puzzle.size === SIZE, 'Puzzle matches board size');
+        check(puzzle.cellCount === CELL_COUNT, 'Cell count matches mask');
         check(puzzle.numbers.get(puzzle.start) === 1, 'Start cell holds number 1');
+        if (puzzle.mask) {
+          check([...puzzle.numbers.keys()].every((c) => puzzle.mask.has(c)), 'Waypoints inside mask');
+          check(puzzle.mask.has(puzzle.hint), 'Baked hint inside mask');
+        }
+        // Пак целиком: маски только на 11–30, флажки внутри масок
+        for (const def of LEVELS) {
+          const hasMask = Array.isArray(def.mask);
+          if (def.id >= 11 && def.id <= 30 && !hasMask) { check(false, `Level ${def.id} must have a mask`); break; }
+          if ((def.id < 11 || def.id > 30) && hasMask) { check(false, `Level ${def.id} must not have a mask`); break; }
+          if (hasMask) {
+            const set = new Set(def.mask);
+            if (!Object.keys(def.numbers).map(Number).every((c) => set.has(c))) { check(false, `Waypoints inside mask: level ${def.id}`); break; }
+          }
+        }
+        checks++;
         // validPath: базовые инварианты на текущем уровне
         const tail = puzzle.neighbors[puzzle.start][0];
         check(!validPath([], puzzle, true) && validPath([], puzzle), 'An empty board is not a completed level');
@@ -1612,7 +1658,7 @@
         check(advanceClock(91, 2500, true, false) === 93.5, 'Active timer uses elapsed time');
         check(restoreGame({ path: [-1], seconds: -20, hints: -4 }, puzzle).path.length === 0, 'Corrupted progress is discarded');
         // Рендер
-        check(cellButtons.length === CELL_COUNT && $('boardCells').querySelectorAll('[role="row"]').length === SIZE, 'Accessible grid matches level size');
+        check(cellButtons.filter(Boolean).length === CELL_COUNT && $('boardCells').querySelectorAll('[role="row"]').length === SIZE, 'Accessible grid matches level size');
         check($('boardCells').querySelectorAll('.number').length === puzzle.numbers.size, 'All waypoint markers are rendered');
         check($('pathGradient').getAttribute('gradientUnits') === 'userSpaceOnUse', 'A straight first segment has a visible gradient');
         const ids = [...document.querySelectorAll('[id]')].map((element) => element.id);

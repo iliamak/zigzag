@@ -11,17 +11,18 @@
 import { writeFileSync } from 'node:fs';
 
 // size, K range, maxGap band, straightDecoys min, maxWalls — из шторма §2-3
+// mask: null (квадрат) | 'shapes' М4 (пак 2) | 'holes' М12 (пак 3)
 const PACKS = [
-  { size: 4, count: 10, k: [4, 4], gap: [6, 7], straight: 0, maxWalls: 2 },
-  { size: 5, count: 10, k: [5, 8], gap: [6, 7], straight: 0, maxWalls: 4 },
-  { size: 5, count: 10, k: [5, 8], gap: [7, 8], straight: 3, maxWalls: 4 },
-  { size: 5, count: 10, k: [5, 8], gap: [8, 9], straight: 0, maxWalls: 4 },
-  { size: 6, count: 10, k: [6, 10], gap: [7, 8], straight: 5, maxWalls: 6 },
-  { size: 6, count: 10, k: [6, 10], gap: [8, 9], straight: 0, maxWalls: 6 },
-  { size: 6, count: 10, k: [6, 10], gap: [9, 10], straight: 0, maxWalls: 6 },
-  { size: 7, count: 10, k: [7, 12], gap: [8, 9], straight: 7, maxWalls: 12 },
-  { size: 7, count: 10, k: [7, 12], gap: [9, 10], straight: 0, maxWalls: 12 },
-  { size: 7, count: 10, k: [7, 12], gap: [10, 11], straight: 9, maxWalls: 12 },
+  { size: 4, count: 10, k: [4, 4], gap: [6, 7], straight: 0, maxWalls: 2, mask: null },
+  { size: 5, count: 10, k: [5, 8], gap: [6, 7], straight: 0, maxWalls: 4, mask: 'shapes' },
+  { size: 5, count: 10, k: [5, 8], gap: [7, 8], straight: 3, maxWalls: 4, mask: 'holes' },
+  { size: 5, count: 10, k: [5, 8], gap: [8, 9], straight: 0, maxWalls: 4, mask: null },
+  { size: 6, count: 10, k: [6, 10], gap: [7, 8], straight: 5, maxWalls: 6, mask: null },
+  { size: 6, count: 10, k: [6, 10], gap: [8, 9], straight: 0, maxWalls: 6, mask: null },
+  { size: 6, count: 10, k: [6, 10], gap: [9, 10], straight: 0, maxWalls: 6, mask: null },
+  { size: 7, count: 10, k: [7, 12], gap: [8, 9], straight: 7, maxWalls: 12, mask: null },
+  { size: 7, count: 10, k: [7, 12], gap: [9, 10], straight: 0, maxWalls: 12, mask: null },
+  { size: 7, count: 10, k: [7, 12], gap: [10, 11], straight: 9, maxWalls: 12, mask: null },
 ];
 
 const MAX_ATTEMPTS = 3000;
@@ -52,28 +53,104 @@ const gridNeighbors = (size, cell) => {
 };
 const edgeKey = (a, b) => (a < b ? `${a}:${b}` : `${b}:${a}`);
 
-function makeSolution(size, random) {
-  let solution = [];
-  for (let r = 0; r < size; r++)
-    for (let c = 0; c < size; c++) solution.push(r * size + (r % 2 ? size - 1 - c : c));
-  for (let i = 0; i < 500; i++) {
-    if (random() < 0.5) solution.reverse();
-    const candidates = gridNeighbors(size, solution[0]).filter((cell) => cell !== solution[1]);
-    if (!candidates.length) continue;
-    const joinAt = solution.indexOf(candidates[Math.floor(random() * candidates.length)]);
-    solution = solution.slice(0, joinAt).reverse().concat(solution.slice(joinAt));
+// --- Маски поля (М4 формы, М12 дыры) ---
+const fullMask = (size) => new Set(Array.from({ length: size * size }, (_, i) => i));
+// Шаблоны вырезов для 5x5 (в координатах), дальше — повороты/отражения
+const SHAPE_CUTS = [
+  [[0, 0], [1, 0], [0, 1]],       // угловой выгрыз
+  [[2, 0], [2, 1]],               // выемка сверху
+  [[2, 2]],                       // дырка в центре
+  [[0, 2], [4, 2]],               // боковые выемки (перешеек)
+  [[1, 1], [3, 3]],               // две дырки по диагонали
+  [[0, 4], [1, 4], [1, 3]],       // угловой выгрыз снизу
+];
+function transformCut(cells, size, random) {
+  // случайные повороты/отражения квадрата
+  const rot = randInt(random, 0, 3);
+  const flip = random() < 0.5;
+  return cells.map(([r, c]) => {
+    let [rr, cc] = [r, c];
+    if (flip) cc = size - 1 - cc;
+    for (let i = 0; i < rot; i++) [rr, cc] = [cc, size - 1 - rr];
+    return rr * size + cc;
+  });
+}
+function shapeMask(size, random) {
+  const cut = transformCut(SHAPE_CUTS[Math.floor(random() * SHAPE_CUTS.length)], size, random);
+  const mask = fullMask(size);
+  cut.forEach((c) => mask.delete(c));
+  return mask;
+}
+function holeMask(size, random) {
+  const mask = fullMask(size);
+  const holes = 1 + (random() < 0.5 ? 1 : 0);
+  let guard = 0;
+  while (mask.size > size * size - holes && guard++ < 50) {
+    mask.delete(Math.floor(random() * size * size));
   }
-  return solution;
+  return mask;
+}
+function makeMask(pack, random) {
+  if (pack.mask === 'shapes') return shapeMask(pack.size, random);
+  if (pack.mask === 'holes') return holeMask(pack.size, random);
+  return fullMask(pack.size);
+}
+const maskedNeighbors = (size, mask, cell) =>
+  gridNeighbors(size, cell).filter((c) => mask.has(c));
+
+function makeSolution(size, random, mask) {
+  if (!mask || mask.size === size * size) {
+    // Классика без изменений (тот же RNG-поток — квадратные паки стабильны)
+    let solution = [];
+    for (let r = 0; r < size; r++)
+      for (let c = 0; c < size; c++) solution.push(r * size + (r % 2 ? size - 1 - c : c));
+    for (let i = 0; i < 500; i++) {
+      if (random() < 0.5) solution.reverse();
+      const candidates = gridNeighbors(size, solution[0]).filter((cell) => cell !== solution[1]);
+      if (!candidates.length) continue;
+      const joinAt = solution.indexOf(candidates[Math.floor(random() * candidates.length)]);
+      solution = solution.slice(0, joinAt).reverse().concat(solution.slice(joinAt));
+    }
+    return solution;
+  }
+  // Фигурное поле: жадный DFS-охват + backbite по маске
+  const cells = [...mask];
+  for (let retry = 0; retry < 60; retry++) {
+    const start = cells[Math.floor(random() * cells.length)];
+    const seen = new Set([start]);
+    const route = [start];
+    let cur = start;
+    let stuck = 0;
+    while (route.length < cells.length && stuck++ < cells.length * 40) {
+      const opts = maskedNeighbors(size, mask, cur).filter((c) => !seen.has(c));
+      if (!opts.length) break;
+      cur = opts[Math.floor(random() * opts.length)];
+      seen.add(cur);
+      route.push(cur);
+    }
+    if (route.length !== cells.length) continue;
+    let solution = route;
+    for (let i = 0; i < 500; i++) {
+      if (random() < 0.5) solution = [...solution].reverse();
+      const candidates = maskedNeighbors(size, mask, solution[0]).filter((cell) => cell !== solution[1]);
+      if (!candidates.length) continue;
+      const joinAt = solution.indexOf(candidates[Math.floor(random() * candidates.length)]);
+      solution = solution.slice(0, joinAt).reverse().concat(solution.slice(joinAt));
+    }
+    return solution;
+  }
+  return null; // маска не гамильтонова — кандидат в брак
 }
 
-// Сколько раз клетка была бы допустимым ЛОЖНЫМ ходом (по решению)
-function decoyCosts(size, solution) {
+// Сколько раз клетка была бы допустимым ЛОЖНЫМ ходом (по решению, в поле маски)
+function decoyCosts(size, solution, mask = null) {
   const cost = new Array(size * size).fill(0);
   const visited = new Set([solution[0]]);
+  const inField = (c) => !mask || mask.has(c);
   for (let i = 1; i < solution.length; i++) {
     const head = solution[i - 1], correct = solution[i];
     for (const n of gridNeighbors(size, head))
-      if (!visited.has(n) && n !== correct) cost[n]++;
+      if (inField(n) && !visited.has(n) && n !== correct) cost[n]++;
     visited.add(correct);
   }
   return cost;
@@ -101,17 +178,21 @@ function optimalWaypoints(solution, cost, K) {
   return { numbers, positions };
 }
 
-function buildNeighbors(size, walls) {
+function buildNeighbors(size, walls, mask = null) {
   const blocked = new Set(walls.map(([a, b]) => edgeKey(a, b)));
-  return Array.from({ length: size * size }, (_, cell) =>
-    gridNeighbors(size, cell).filter((nb) => !blocked.has(edgeKey(cell, nb))));
+  return Array.from({ length: size * size }, (_, cell) => {
+    if (mask && !mask.has(cell)) return [];
+    return gridNeighbors(size, cell).filter((nb) => (!mask || mask.has(nb)) && !blocked.has(edgeKey(cell, nb)));
+  });
 }
 
 // DFS до первых `limit` полных путей. completed=false, если упёрлись в кап —
 // тогда found.length===1 НЕ гарантирует единственность!
-function solvePaths(size, numbers, walls, maxNum, limit = 2) {
+function solvePaths(size, numbers, walls, maxNum, limit = 2, mask = null) {
   const total = size * size;
-  const neighbors = buildNeighbors(size, walls);
+  const cells = mask ? mask.size : total;
+  const neighbors = buildNeighbors(size, walls, mask);
+  const inField = (cell) => !mask || mask.has(cell);
   const end = Number(Object.entries(numbers).find(([, n]) => n === maxNum)[0]);
   const start = Number(Object.entries(numbers).find(([, n]) => n === 1)[0]);
   const visited = new Uint8Array(total);
@@ -123,7 +204,7 @@ function solvePaths(size, numbers, walls, maxNum, limit = 2) {
   const deadline = Date.now() + 1500;
   function viable(current) {
     for (let cell = 0; cell < total; cell++) {
-      if (visited[cell]) continue;
+      if (!inField(cell) || visited[cell]) continue;
       let degree = 0;
       for (const nb of neighbors[cell]) if (!visited[nb] || nb === current) degree++;
       if (degree < (cell === end ? 1 : 2)) return false;
@@ -139,18 +220,18 @@ function solvePaths(size, numbers, walls, maxNum, limit = 2) {
         if (!seen[nb] && !visited[nb]) { seen[nb] = 1; stack.push(nb); }
       }
     }
-    return count === total - route.length + 1;
+    return count === cells - route.length + 1;
   }
   function search(current, needed) {
     if (found.length >= limit || Date.now() > deadline) return;
     if (++nodes > SOLVER_CAP) { capped = true; return; }
     if ((nodes & 63) === 0 && !viable(current)) return;
-    if (route.length === total) {
+    if (route.length === cells) {
       if (current === end && needed === maxNum + 1) found.push([...route]);
       return;
     }
     const cands = neighbors[current]
-      .filter((cell) => !visited[cell] && (!(cell in numbers) || numbers[cell] === needed) && (cell !== end || route.length === total - 1))
+      .filter((cell) => !visited[cell] && (!(cell in numbers) || numbers[cell] === needed) && (cell !== end || route.length === cells - 1))
       .sort((a, b) => neighbors[a].filter((c) => !visited[c]).length - neighbors[b].filter((c) => !visited[c]).length);
     for (const cell of cands) {
       visited[cell] = 1; route.push(cell);
@@ -166,11 +247,11 @@ function solvePaths(size, numbers, walls, maxNum, limit = 2) {
 // Точечные стенки: якорь — ЭТАЛОННОЕ решение (его рёбра неприкосновенны,
 // иначе _solution/hint протухнут). Пока решений >1 — стенка на ребро чужого
 // пути с мин. суммарным cost (бьём дешёвые ложные ходы).
-function sealUniqueness(size, numbers, solution, cost, maxNum, maxWalls) {
+function sealUniqueness(size, numbers, solution, cost, maxNum, maxWalls, mask = null) {
   const walls = [];
   const keep = new Set(solution.slice(1).map((c, i) => edgeKey(solution[i], c)));
   for (let guard = 0; guard < maxWalls * 2 + 4; guard++) {
-    const res = solvePaths(size, numbers, walls, maxNum, 2);
+    const res = solvePaths(size, numbers, walls, maxNum, 2, mask);
     // Единственность засчитываем только при полном переборе без капа,
     // и единственный путь обязан совпадать с эталоном
     if (res.found.length === 1 && res.completed) {
@@ -199,10 +280,11 @@ function sealUniqueness(size, numbers, solution, cost, maxNum, maxWalls) {
 
 // Метрики по решению С УЧЁТОМ стенок (на открытом поле decoys — инвариант
 // размера и дисперсии нет; именно стенки создают разброс сложности).
-function measure(size, solution, positions, walls, numbers) {
+function measure(size, solution, positions, walls, numbers, mask = null) {
   const n = solution.length;
   const blocked = new Set(walls.map(([a, b]) => edgeKey(a, b)));
-  const free = (cell) => gridNeighbors(size, cell).filter((c) => !blocked.has(edgeKey(cell, c)));
+  const inField = (c) => !mask || mask.has(c);
+  const free = (cell) => gridNeighbors(size, cell).filter((c) => inField(c) && !blocked.has(edgeKey(cell, c)));
   const visited = new Set([solution[0]]);
   let decoys = 0, forks = 0, straight = 0;
   let needed = numbers[solution[0]] === 1 ? 2 : 1;
@@ -235,16 +317,26 @@ function measure(size, solution, positions, walls, numbers) {
 function genCandidate(pack, attempt) {
   const { size } = pack;
   const random = randomSource(hashSeed(`zigzag-v2-${size}-${attempt}`));
-  const solution = makeSolution(size, random);
-  const cost = decoyCosts(size, solution);
+  const mask = makeMask(pack, random);
+  const solution = makeSolution(size, random, mask);
+  if (!solution) return null;
+  const cost = decoyCosts(size, solution, mask);
   const K = randInt(random, pack.k[0], pack.k[1]);
   const { numbers, positions } = optimalWaypoints(solution, cost, K);
   const maxNum = K;
-  const seal = sealUniqueness(size, numbers, solution, cost, maxNum, pack.maxWalls);
+  const seal = sealUniqueness(size, numbers, solution, cost, maxNum, pack.maxWalls, mask);
   if (!seal.ok) return null;
-  const m = measure(size, solution, positions, seal.walls, numbers);
+  // Teach-гейт масочных паков: без механики (полное поле) уровень обязан
+  // решаться НЕ единственным путём — иначе механика ничему не учит.
+  // Строго только при полном переборе; при капе считаем, что механика важна.
+  if (pack.mask) {
+    const ref = solvePaths(size, numbers, seal.walls, maxNum, 2, null);
+    if (ref.found.length === 1 && ref.completed) return null;
+  }
+  const m = measure(size, solution, positions, seal.walls, numbers, mask);
   return {
     size, numbers, walls: seal.walls, solution, positions,
+    mask: mask.size === size * size ? null : [...mask].sort((a, b) => a - b),
     m: { ...m, walls: seal.walls.length, solverNodes: seal.nodes, score: Math.round(m.decoyPerCell * 1000) },
   };
 }
@@ -270,7 +362,7 @@ function main() {
     const [glo, ghi] = pack.gap;
     const minDecoy = Math.max(0, prevMedian - 0.03);
     const mid = (glo + ghi) / 2;
-    const key = (c) => JSON.stringify([c.size, c.numbers, c.walls]);
+    const key = (c) => JSON.stringify([c.size, c.numbers, c.walls, c.mask || 0]);
     const seenPack = new Set();
     // Отбор: пол minDecoy ЖЁСТКИЙ (без bypass — иначе медианы проседают);
     // не хватает — расширяем пул, а не снижаем планку. Полоса и straight слабнут.
@@ -303,7 +395,7 @@ function main() {
     const ds = chosen.map((c) => c.m.decoyPerCell).sort((a, b) => a - b);
     prevMedian = ds[Math.floor(ds.length / 2)];
     for (const cand of chosen) {
-      levels.push({
+      const entry = {
         id: id++,
         size: cand.size,
         numbers: cand.numbers,
@@ -311,7 +403,9 @@ function main() {
         hint: cand.solution[1],
         metrics: cand.m,
         _solution: cand.solution,
-      });
+      };
+      if (cand.mask) entry.mask = cand.mask;
+      levels.push(entry);
     }
     const dsv = chosen.map((c) => c.m.decoyPerCell);
     console.log(`Пак ${pi + 1} (${pack.size}x${pack.size}): ${pack.count} ур., пул ${pool.length}/${attempt}, decoy/cell ${Math.min(...dsv).toFixed(2)}–${Math.max(...dsv).toFixed(2)}, ${Date.now() - t0} мс`);
