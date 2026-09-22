@@ -37,6 +37,27 @@ for (const l of stripped) {
     console.error(`ГЕЙТ ПРОВАЛЕН: битая запечённая подсказка на уровне ${l.id}`);
     process.exit(1);
   }
+  // Гейт маски: клетки в поле, флажки и подсказка внутри маски
+  if (l.mask !== undefined) {
+    const full = l.size * l.size;
+    if (!Array.isArray(l.mask) || !l.mask.length || l.mask.length >= full ||
+        !l.mask.every((c) => Number.isInteger(c) && c >= 0 && c < full)) {
+      console.error(`ГЕЙТ ПРОВАЛЕН: битая маска на уровне ${l.id}`);
+      process.exit(1);
+    }
+    const set = new Set(l.mask);
+    const numCells = Object.keys(l.numbers).map(Number);
+    if (!numCells.every((c) => set.has(c)) || !set.has(start) || !set.has(l.hint)) {
+      console.error(`ГЕЙТ ПРОВАЛЕН: флажки вне маски на уровне ${l.id}`);
+      process.exit(1);
+    }
+    for (const [a, b] of l.walls) {
+      if (!set.has(a) || !set.has(b)) {
+        console.error(`ГЕЙТ ПРОВАЛЕН: стенка вне маски на уровне ${l.id}`);
+        process.exit(1);
+      }
+    }
+  }
 }
 
 console.log(`Готово: ${stripped.length} уровней -> levels.build.json, _solution вычищен, гейты зелёные`);
