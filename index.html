@@ -581,6 +581,7 @@
       const FULLSCREEN_EVERY = 4; // fullscreen-реклама раз в 4–5 пройденных уровней
       const SVG_NS = 'http://www.w3.org/2000/svg';
       const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      const DEV = new URLSearchParams(location.search).has('dev');
       const dialog = $('appDialog');
       const board = $('board');
       let SIZE = 6;
@@ -1398,7 +1399,55 @@
       }
 
       function unlockedMax() {
+        if (DEV) return 100; // dev-режим: всё открыто
         return Math.min(100, Math.max(state.current, ...Object.keys(state.done).map(Number), 1));
+      }
+
+      // DEV-панель: быстрые инструменты тестирования (только ?dev=1)
+      function setupDevPanel() {
+        if (!DEV) return;
+        document.title += ' [DEV]';
+        const badge = document.createElement('div');
+        badge.textContent = 'DEV';
+        badge.setAttribute('aria-hidden', 'true');
+        badge.style.cssText = 'position:fixed;right:10px;bottom:10px;z-index:60;background:#b3261e;color:#fff;font:700 11px/1 Golos Text,sans-serif;letter-spacing:1px;padding:7px 9px;border-radius:7px;opacity:.92;';
+        const panel = document.createElement('div');
+        panel.style.cssText = 'position:fixed;right:10px;bottom:44px;z-index:60;display:flex;gap:6px;';
+        const solve = document.createElement('button');
+        solve.textContent = 'Решить';
+        solve.title = 'Заполнить эталонный путь (dev)';
+        solve.style.cssText = 'background:#292a27;color:#fff;border:0;border-radius:7px;padding:8px 10px;font-size:11px;cursor:pointer;';
+        solve.onclick = devSolve;
+        const wipe = document.createElement('button');
+        wipe.textContent = 'Сброс';
+        wipe.title = 'Стереть прогресс и начать с 1 (dev)';
+        wipe.style.cssText = 'background:#fff;color:#292a27;border:1px solid #e3e4db;border-radius:7px;padding:8px 10px;font-size:11px;cursor:pointer;';
+        wipe.onclick = () => {
+          if (!window.confirm('Стереть весь прогресс?')) return;
+          try { localStorage.removeItem(STORAGE_KEY); } catch { /* ignore */ }
+          location.search = '?dev=1';
+        };
+        panel.append(solve, wipe);
+        document.body.append(badge, panel);
+      }
+
+      // Авторешение через dev-JSON с эталонами (levels.json не попадает в билд)
+      let devSolutions = null;
+      async function devSolve() {
+        if (!DEV || game.completed || dialog.open) return;
+        try {
+          if (!devSolutions) {
+            const res = await fetch('levels.json', { cache: 'no-store' });
+            if (!res.ok) throw new Error('no dev json');
+            devSolutions = await res.json();
+          }
+          const ref = devSolutions.find((l) => l.id === levelId)?._solution;
+          if (!Array.isArray(ref) || !validPath(ref, puzzle, true)) { showToast('DEV: эталон не сошёлся.'); return; }
+          game.path = [...ref];
+          game.hint = null;
+          render();
+          finishGame();
+        } catch { showToast('DEV: нужен levels.json рядом (локально/Vercel).'); }
       }
 
       function showLevels() {
@@ -1721,6 +1770,7 @@
         syncClock();
         persist();
         await pkbRestorePurchases();
+        if (DEV) { state.noAds = true; setupDevPanel(); } // dev: без рекламы и с панелью
         if (uiReady) renderSide();
         pkbStarted();
         if (pendingResult && !dialog.open) setTimeout(() => { if (pendingResult && !dialog.open) showResult(); }, 400);
