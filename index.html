@@ -691,6 +691,148 @@
       }
       function cloudSync() { /* Bothost/Supabase — следующим этапом (PIKABU_PLAN.md п.6–7). */ }
 
+      // --- Фоновая музыка: генеративный лоуфай v1 (FR-2) ---
+      // Только фон, без файлов: Rhodes-септаккорды, кик+хэт со свингом,
+      // синус-бас, винил-треск. Создаётся при инициализации (suspended),
+      // будится первым жестом. Пауза/реклама/диалог/таб — fade 0.5с.
+      const bgm = { ctx: null, fade: null, timer: null, step: 0, nextTime: 0 };
+      const BGM_BEAT = 60 / 76;
+      const BGM_CHORDS = [
+        [53, 57, 60, 64], // Fmaj7
+        [52, 55, 59, 62], // Em7
+        [50, 53, 57, 60], // Dm7
+        [48, 52, 55, 59], // Cmaj7
+      ];
+      const bgmMidi = (m) => 440 * Math.pow(2, (m - 69) / 12);
+      function bgmWanted(sound, isPaused, isAd, isDialog, isHidden) {
+        return !!(sound && !isPaused && !isAd && !isDialog && !isHidden);
+      }
+      function bgmInit() {
+        try {
+          const AC = window.AudioContext || window.webkitAudioContext;
+          if (!AC) return false;
+          const ctx = new AC();
+          const bus = ctx.createGain();
+          bus.gain.value = 0.5;
+          const filt = ctx.createBiquadFilter();
+          filt.type = 'lowpass';
+          filt.frequency.value = 1600;
+          // медленное дыхание фильтра — «живость» вместо метронома
+          const lfo = ctx.createOscillator();
+          const lfoGain = ctx.createGain();
+          lfo.frequency.value = 0.07;
+          lfoGain.gain.value = 500;
+          lfo.connect(lfoGain).connect(filt.frequency);
+          lfo.start();
+          const fade = ctx.createGain();
+          fade.gain.value = 0;
+          bus.connect(filt).connect(fade).connect(ctx.destination);
+          // винил-треск: зацикленный шум с щелчками
+          const len = ctx.sampleRate * 2;
+          const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+          const data = buf.getChannelData(0);
+          let last = 0;
+          for (let i = 0; i < len; i++) {
+            const white = Math.random() * 2 - 1;
+            last = (last + 0.02 * white) / 1.02;
+            data[i] = last * 0.6 + (Math.random() < 0.0004 ? (Math.random() * 2 - 1) * 0.9 : 0);
+          }
+          const crackle = ctx.createBufferSource();
+          crackle.buffer = buf;
+          crackle.loop = true;
+          const crackleGain = ctx.createGain();
+          crackleGain.gain.value = 0.05;
+          crackle.connect(crackleGain).connect(fade);
+          crackle.start();
+          bgm.ctx = ctx;
+          bgm.bus = bus;
+          bgm.fade = fade;
+          bgm.nextTime = ctx.currentTime + 0.1;
+          bgm.timer = setInterval(bgmSchedule, 200);
+          return true;
+        } catch { return false; }
+      }
+      function bgmTone(freq, time, dur, vol, type = 'triangle') {
+        const ctx = bgm.ctx;
+        const osc = ctx.createOscillator();
+        osc.type = type;
+        osc.frequency.value = freq;
+        osc.detune.value = (Math.random() - 0.5) * 8; // ±4 цента против стерильности
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(0, time);
+        g.gain.linearRampToValueAtTime(vol, time + 0.03);
+        g.gain.exponentialRampToValueAtTime(0.0001, time + dur);
+        osc.connect(g).connect(bgm.bus);
+        osc.start(time);
+        osc.stop(time + dur + 0.05);
+      }
+      function bgmKick(time) {
+        const ctx = bgm.ctx;
+        const osc = ctx.createOscillator();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(150, time);
+        osc.frequency.exponentialRampToValueAtTime(45, time + 0.12);
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(0.5, time);
+        g.gain.exponentialRampToValueAtTime(0.0001, time + 0.16);
+        osc.connect(g).connect(bgm.bus);
+        osc.start(time);
+        osc.stop(time + 0.2);
+      }
+      function bgmHat(time) {
+        const ctx = bgm.ctx;
+        const len = Math.floor(ctx.sampleRate * 0.05);
+        const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+        const d = buf.getChannelData(0);
+        for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / len);
+        const src = ctx.createBufferSource();
+        src.buffer = buf;
+        const hp = ctx.createBiquadFilter();
+        hp.type = 'highpass';
+        hp.frequency.value = 6500;
+        const g = ctx.createGain();
+        g.gain.value = 0.10;
+        src.connect(hp).connect(g).connect(bgm.bus);
+        src.start(time);
+      }
+      function bgmSchedule() {
+        if (!bgm.ctx || bgm.ctx.state !== 'running') return;
+        const ahead = bgm.ctx.currentTime + 0.6;
+        while (bgm.nextTime < ahead) {
+          const t = bgm.nextTime;
+          const s = bgm.step;
+          const beat = s % 2 === 0; // шаги по восьмым: чётные — доли
+          const bar = Math.floor(s / 8) % 4;
+          const chord = BGM_CHORDS[bar];
+          if (s % 8 === 0) {
+            chord.forEach((m) => bgmTone(bgmMidi(m), t, BGM_BEAT * 3.5, 0.055));
+            bgmTone(bgmMidi(chord[0] - 12), t, BGM_BEAT * 1.8, 0.14, 'sine'); // бас
+          }
+          if (s % 8 === 4) {
+            bgmTone(bgmMidi(chord[0] - 12), t, BGM_BEAT * 1.5, 0.10, 'sine');
+          }
+          if (beat && s % 8 !== 4) bgmKick(t);
+          if (s % 8 === 4) bgmKick(t);
+          // хэт на каждую восьмую, оффбит со свингом
+          const swing = s % 2 === 1 ? BGM_BEAT * 0.12 : (Math.random() - 0.5) * 0.015;
+          bgmHat(t + swing);
+          bgm.step++;
+          bgm.nextTime = t + (BGM_BEAT / 2) * (1 + (Math.random() - 0.5) * 0.02);
+        }
+      }
+      function bgmUpdate() {
+        if (!bgm.ctx || !bgm.fade) return;
+        const want = game && uiReady && bgmWanted(state.sound, paused, adOpen, dialog.open, document.hidden);
+        if (want && bgm.ctx.state === 'suspended') bgm.ctx.resume().catch(() => {});
+        const t = bgm.ctx.currentTime;
+        bgm.fade.gain.cancelScheduledValues(t);
+        bgm.fade.gain.setTargetAtTime(want ? 1 : 0, t, 0.16); // ~0.5с fade
+      }
+      function bgmWake() {
+        if (bgm.ctx && bgm.ctx.state === 'suspended') bgm.ctx.resume().catch(() => {});
+        bgmUpdate();
+      }
+
       function levelDef(id) { return LEVELS.find((l) => l.id === id) || null; }
 
       function buildPuzzle(def) {
@@ -1022,6 +1164,7 @@
         clearTimeout(instructionTimeout);
         defaultInstruction();
         renderSide();
+        bgmUpdate();
       }
 
       function setInstruction(text, error = false) {
@@ -1375,6 +1518,7 @@
         syncClock();
         const focusTarget = $('modalContent').querySelector('[data-initial-focus]') || $('modalTitle');
         focusTarget?.focus({ preventScroll: true });
+        bgmUpdate();
       }
 
       function showResult() {
@@ -1644,6 +1788,7 @@
         else if (game.completed && modalOrigin?.closest('#board')) $('nextButton').focus({ preventScroll: true });
         else if (modalOrigin?.isConnected && !modalOrigin.closest('[hidden]') && !modalOrigin.disabled) modalOrigin.focus({ preventScroll: true });
         if (pendingResult && game.completed) setTimeout(() => { if (pendingResult && !dialog.open) showResult(); }, 80);
+        bgmUpdate();
       });
       document.addEventListener('visibilitychange', () => {
         syncClock();
@@ -1731,6 +1876,14 @@
         check(advanceClock(91, 3000, false, false) === 91, 'Paused timer does not advance');
         check(advanceClock(91, 2500, true, false) === 93.5, 'Active timer uses elapsed time');
         check(restoreGame({ path: [-1], seconds: -20, hints: -4 }, puzzle).path.length === 0, 'Corrupted progress is discarded');
+        // Аудио: чистая логика желания играть + наличие WebAudio
+        check(bgmWanted(true, false, false, false, false) === true, 'Music wanted while playing');
+        check(bgmWanted(false, false, false, false, false) === false, 'Music off when sound disabled');
+        check(bgmWanted(true, true, false, false, false) === false, 'Music off on pause');
+        check(bgmWanted(true, false, true, false, false) === false, 'Music off during ads');
+        check(bgmWanted(true, false, false, true, false) === false, 'Music off with dialog open');
+        check(bgmWanted(true, false, false, false, true) === false, 'Music off in hidden tab');
+        check(!window.AudioContext || bgm.ctx !== null, 'AudioContext created at boot');
         // Рендер
         check(cellButtons.filter(Boolean).length === CELL_COUNT && $('boardCells').querySelectorAll('[role="row"]').length === SIZE, 'Accessible grid matches level size');
         check($('boardCells').querySelectorAll('.number').length === puzzle.numbers.size, 'All waypoint markers are rendered');
@@ -1765,6 +1918,9 @@
         paused = game.path.length > 0 && !game.completed;
         focusedCell = game.path.at(-1) ?? puzzle.start;
         buildBoard();
+        bgmInit(); // контекст молчит (suspended) до первого жеста
+        window.addEventListener('pointerdown', bgmWake);
+        window.addEventListener('keydown', bgmWake);
         uiReady = true;
         render();
         syncClock();
@@ -1782,6 +1938,9 @@
       }, 250);
       // Pure diagnostics are available from the console without changing progress or unlocking a level.
       window.zigzagDiagnostics = selfTest;
+      if (DEV || new URLSearchParams(location.search).has('selftest')) {
+        window.zigzagAudio = () => ({ state: bgm.ctx?.state ?? 'none', fade: bgm.fade?.gain.value ?? -1 });
+      }
       boot();
       if (new URLSearchParams(location.search).has('selftest')) {
         const wait = setInterval(() => {
