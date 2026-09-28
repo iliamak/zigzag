@@ -95,6 +95,8 @@
     .number.start::after { content: ''; position: absolute; inset: -6px; border: 1.5px solid rgba(245,117,60,.45); border-radius: 50%; animation: start-pulse 2.8s ease-out infinite; }
     .board.started .number.start::after { animation: none; opacity: 0; }
     .board-cell.visited .number:not(.start) { background: #3b3029; box-shadow: 0 0 0 3px #ffdfc6; }
+    .straight { width: 22px; height: 5px; background: var(--orange); border-radius: 3px; pointer-events: none; }
+    .board-cell.visited .straight { background: var(--orange-dark); }
     .board-cell.just-hit .number { animation: number-pop .35s ease-out; }
     .board-cell.invalid { animation: invalid-cell .4s ease-out; }
     .board-cell.hinted::after { content: ''; position: absolute; inset: 12%; border: 2px dashed var(--orange); border-radius: 12px; background: rgba(245,117,60,.06); animation: hint-pulse 1.6s ease-in-out infinite; pointer-events: none; }
@@ -536,7 +538,7 @@
                 <p>Заполните<br>каждую клетку</p>
               </div>
             </div>
-            <p class="how-note">Без диагоналей и пересечений.<br>Через тёмные стенки проходить нельзя.</p>
+            <p class="how-note">Без диагоналей и пересечений.<br>Через тёмные стенки проходить нельзя.<br>Чёрточка — здесь нельзя поворачивать, только прямо.</p>
             <button type="button" class="demo-link" id="demoButton">Посмотреть пример<svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></button>
           </div>
         </section>
@@ -850,7 +852,10 @@
           if (num === 1) start = cell;
           if (num > maxNum) maxNum = num;
         });
-        return { id: def.id, size: SIZE, cellCount: CELL_COUNT, mask: maskSet, numbers, walls: def.walls, blocked, neighbors, start, maxNum, hint: def.hint };
+        // М2: сквозные клетки без номера (пак 6, уровни 51–60).
+        // Старые уровни работают без поля — straight остаётся null.
+        const straight = Array.isArray(def.straight) ? new Set(def.straight) : null;
+        return { id: def.id, size: SIZE, cellCount: CELL_COUNT, mask: maskSet, numbers, walls: def.walls, blocked, neighbors, start, maxNum, hint: def.hint, straight };
       }
 
       function doneCount() { return Object.keys(state.done).length; }
@@ -870,6 +875,10 @@
       function row(cell) { return Math.floor(cell / SIZE); }
       function col(cell) { return cell % SIZE; }
       function distance(a, b) { return Math.abs(row(a) - row(b)) + Math.abs(col(a) - col(b)); }
+      // М2: три клетки идут прямо без поворота в средней?
+      function goesStraight(a, b, c) {
+        return row(b) - row(a) === row(c) - row(b) && col(b) - col(a) === col(c) - col(b);
+      }
       function gridNeighbors(cell) {
         const result = [];
         if (row(cell) > 0) result.push(cell - SIZE);
@@ -892,6 +901,8 @@
           const cell = path[i];
           if (!Number.isInteger(cell) || cell < 0 || cell >= SIZE * SIZE || visited.has(cell)) return false;
           if (i > 0 && !data.neighbors[path[i - 1]].includes(cell)) return false;
+          // М2: на сквозной клетке нельзя поворачивать.
+          if (i >= 2 && data.straight && data.straight.has(path[i - 1]) && !goesStraight(path[i - 2], path[i - 1], cell)) return false;
           visited.add(cell);
           const number = data.numbers.get(cell);
           if (number) {
@@ -1054,6 +1065,12 @@
               marker.className = `number${number === 1 ? ' start' : ''}`;
               marker.textContent = number;
               button.append(marker);
+            } else if (puzzle.straight && puzzle.straight.has(cell)) {
+              // М2: чёрточка — здесь нельзя поворачивать, только прямо.
+              const bar = document.createElement('span');
+              bar.className = 'straight';
+              bar.setAttribute('aria-hidden', 'true');
+              button.append(bar);
             }
             button.addEventListener('click', (event) => {
               if (event.detail === 0) {
@@ -1146,7 +1163,8 @@
           button.tabIndex = cell === focusedCell ? 0 : -1;
           button.setAttribute('aria-selected', String(visited.has(cell)));
           const number = puzzle.numbers.get(cell);
-          button.setAttribute('aria-label', `${number ? `Число ${number}. ` : ''}Строка ${row(cell) + 1}, столбец ${col(cell) + 1}${visited.has(cell) ? ', заполнена' : ''}${game.hint === cell ? ', подсказка: следующая клетка' : ''}`);
+          const thru = puzzle.straight && puzzle.straight.has(cell);
+          button.setAttribute('aria-label', `${number ? `Число ${number}. ` : thru ? 'Клетка без поворота. ' : ''}Строка ${row(cell) + 1}, столбец ${col(cell) + 1}${visited.has(cell) ? ', заполнена' : ''}${game.hint === cell ? ', подсказка: следующая клетка' : ''}`);
         });
         $('pauseOverlay').hidden = !paused || game.completed;
         $('pauseButton').disabled = !game.path.length || game.completed;
@@ -1229,6 +1247,9 @@
         const tail = game.path.at(-1);
         if (distance(tail, cell) !== 1) return invalidMove(cell, 'Выберите соседнюю клетку, без диагоналей', quiet);
         if (puzzle.blocked.has(edgeKey(tail, cell))) return invalidMove(cell, 'Здесь стенка. Найдите другой путь.', quiet);
+        // М2: уход со сквозной клетки — только прямо, без поворота.
+        if (game.path.length >= 2 && puzzle.straight && puzzle.straight.has(tail) && !goesStraight(game.path.at(-2), tail, cell))
+          return invalidMove(cell, 'Здесь нельзя поворачивать — идите прямо.', quiet);
         const number = puzzle.numbers.get(cell);
         if (number && number !== nextNumber()) return invalidMove(cell, `Сначала соедините число ${nextNumber()}`, quiet);
         if (number === puzzle.maxNum && game.path.length !== CELL_COUNT - 1) return invalidMove(cell, 'До финиша нужно заполнить все клетки', quiet);
@@ -1367,6 +1388,8 @@
           }
           const candidates = data.neighbors[current]
             .filter((cell) => !visited[cell] && (!data.numbers.has(cell) || data.numbers.get(cell) === needed) && (cell !== end || route.length === total - 1))
+            // М2: со сквозной клетки — только прямо.
+            .filter((cell) => !(data.straight && data.straight.has(current) && route.length >= 2) || goesStraight(route.at(-2), current, cell))
             .sort((a, b) => data.neighbors[a].filter((cell) => !visited[cell]).length - data.neighbors[b].filter((cell) => !visited[cell]).length);
           for (const cell of candidates) {
             visited[cell] = 1;
@@ -1647,6 +1670,7 @@
         syncClock();
         persist();
         window.scrollTo({ top: 0, behavior: 'auto' });
+        if (!dialog.open) focusCell(focusedCell); // автофокус старта — стрелки сразу ведут линию
       }
 
       async function goNext() {
@@ -1865,6 +1889,26 @@
           }
         }
         checks++;
+        // М2: чёрточки только на 51–60, 1–2 штуки, не на флажках, teach — ровно 1
+        for (const def of LEVELS) {
+          const hasBars = Array.isArray(def.straight);
+          const inPack6 = def.id >= 51 && def.id <= 60;
+          if (inPack6 && !hasBars) { check(false, `Level ${def.id} must have straight cells`); break; }
+          if (!inPack6 && hasBars) { check(false, `Level ${def.id} must not have straight cells`); break; }
+          if (hasBars) {
+            const bars = def.straight;
+            const full = def.size * def.size;
+            if (!bars.length || bars.length > 2 || !bars.every((c) => Number.isInteger(c) && c >= 0 && c < full) || new Set(bars).size !== bars.length) { check(false, `Straight cells are valid: level ${def.id}`); break; }
+            if (!bars.every((c) => !(c in def.numbers))) { check(false, `Straight cells are not waypoints: level ${def.id}`); break; }
+            if (def.id < 53 && bars.length !== 1) { check(false, `Teach levels have exactly 1 bar: level ${def.id}`); break; }
+          }
+        }
+        checks++;
+        // goesStraight: чистая геометрия на текущем размере поля
+        check(goesStraight(0, 1, 2) === true, 'Horizontal line is straight');
+        check(goesStraight(0, SIZE, 2 * SIZE) === true, 'Vertical line is straight');
+        check(goesStraight(0, 1, 1 + SIZE) === false, 'Turn is not straight');
+        check(goesStraight(2, 1, 0) === true, 'Reverse line is straight');
         // validPath: базовые инварианты на текущем уровне
         const tail = puzzle.neighbors[puzzle.start][0];
         check(!validPath([], puzzle, true) && validPath([], puzzle), 'An empty board is not a completed level');
@@ -1887,6 +1931,7 @@
         // Рендер
         check(cellButtons.filter(Boolean).length === CELL_COUNT && $('boardCells').querySelectorAll('[role="row"]').length === SIZE, 'Accessible grid matches level size');
         check($('boardCells').querySelectorAll('.number').length === puzzle.numbers.size, 'All waypoint markers are rendered');
+        check($('boardCells').querySelectorAll('.straight').length === (puzzle.straight ? puzzle.straight.size : 0), 'All straight markers are rendered');
         check($('pathGradient').getAttribute('gradientUnits') === 'userSpaceOnUse', 'A straight first segment has a visible gradient');
         const ids = [...document.querySelectorAll('[id]')].map((element) => element.id);
         check(new Set(ids).size === ids.length, 'DOM identifiers are unique');
@@ -1925,6 +1970,7 @@
         render();
         syncClock();
         persist();
+        if (!dialog.open) focusCell(focusedCell); // автофокус старта при первой загрузке
         await pkbRestorePurchases();
         if (DEV) { state.noAds = true; setupDevPanel(); } // dev: без рекламы и с панелью
         if (uiReady) renderSide();

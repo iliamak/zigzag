@@ -12,15 +12,19 @@ import { readFileSync, writeFileSync } from 'node:fs';
 
 // size, K range, maxGap band, straightDecoys min, maxWalls — из шторма §2-3
 // mask: null (квадрат) | 'shapes' М4 (пак 2) | 'holes' М12 (пак 3)
-// FR-11: М11 (обязательные клетки) из пака 4 убрана — покрывающая подсказка
-// без логического смысла. Пак 4 — чистые 5×5, рампу держит плотность decoy.
+// straight: true — М2 сквозные клетки (пак 6): на метке нельзя поворачивать,
+//   линия входит и выходит по одной прямой. В отличие от М11 это настоящее
+//   ограничение (убирает решения), поэтому teach-гейт честный: без правила
+//   уровень обязан решаться НЕ единственным путём, иначе правилу нечему учить.
+// FR-11: М11 из пака 4 убрана. Пак 4 — чистые 5×5.
+// Порядок FR-7 нарушен осознанно: пак 5 (М1) пропущен по команде, вернёмся позже.
 const PACKS = [
   { size: 4, count: 10, k: [4, 4], gap: [6, 7], straight: 0, maxWalls: 2, mask: null },
   { size: 5, count: 10, k: [5, 8], gap: [6, 7], straight: 0, maxWalls: 4, mask: 'shapes' },
   { size: 5, count: 10, k: [5, 8], gap: [7, 8], straight: 3, maxWalls: 4, mask: 'holes' },
   { size: 5, count: 10, k: [5, 8], gap: [8, 9], straight: 0, maxWalls: 4, mask: null },
   { size: 6, count: 10, k: [6, 10], gap: [7, 8], straight: 5, maxWalls: 6, mask: null },
-  { size: 6, count: 10, k: [6, 10], gap: [8, 9], straight: 0, maxWalls: 6, mask: null },
+  { size: 6, count: 10, k: [6, 10], gap: [8, 9], straight: 0, maxWalls: 6, mask: null, thru: true },
   { size: 6, count: 10, k: [6, 10], gap: [9, 10], straight: 0, maxWalls: 6, mask: null },
   { size: 7, count: 10, k: [7, 12], gap: [8, 9], straight: 7, maxWalls: 12, mask: null },
   { size: 7, count: 10, k: [7, 12], gap: [9, 10], straight: 0, maxWalls: 12, mask: null },
@@ -54,6 +58,14 @@ const gridNeighbors = (size, cell) => {
   return out;
 };
 const edgeKey = (a, b) => (a < b ? `${a}:${b}` : `${b}:${a}`);
+// Три клетки идут по одной прямой (без поворота в средней)?
+const sameDir = (size, a, b, c) =>
+  Math.floor(b / size) - Math.floor(a / size) === Math.floor(c / size) - Math.floor(b / size) &&
+  (b % size) - (a % size) === (c % size) - (b % size);
+const cornerDist = (size, cell) => {
+  const r = Math.floor(cell / size), c = cell % size;
+  return Math.min(r + c, r + (size - 1 - c), (size - 1 - r) + c, (size - 1 - r) + (size - 1 - c));
+};
 
 // --- Маски поля (М4 формы, М12 дыры) ---
 const fullMask = (size) => new Set(Array.from({ length: size * size }, (_, i) => i));
@@ -190,7 +202,10 @@ function buildNeighbors(size, walls, mask = null) {
 
 // DFS до первых `limit` полных путей. completed=false, если упёрлись в кап —
 // тогда found.length===1 НЕ гарантирует единственность!
-function solvePaths(size, numbers, walls, maxNum, limit = 2, mask = null) {
+// thru: Set клеток М2 — выход из такой клетки только прямо (по входу).
+// viable() остаётся корректным: degree<2 всё равно означает тупик, а проверки
+// связности — over-аппроксимация (недожим прунинга, не ложный брак).
+function solvePaths(size, numbers, walls, maxNum, limit = 2, mask = null, thru = null) {
   const total = size * size;
   const cells = mask ? mask.size : total;
   const neighbors = buildNeighbors(size, walls, mask);
@@ -232,9 +247,11 @@ function solvePaths(size, numbers, walls, maxNum, limit = 2, mask = null) {
       if (current === end && needed === maxNum + 1) found.push([...route]);
       return;
     }
-    const cands = neighbors[current]
-      .filter((cell) => !visited[cell] && (!(cell in numbers) || numbers[cell] === needed) && (cell !== end || route.length === cells - 1))
-      .sort((a, b) => neighbors[a].filter((c) => !visited[c]).length - neighbors[b].filter((c) => !visited[c]).length);
+    let cands = neighbors[current]
+      .filter((cell) => !visited[cell] && (!(cell in numbers) || numbers[cell] === needed) && (cell !== end || route.length === cells - 1));
+    if (thru && thru.has(current) && route.length >= 2)
+      cands = cands.filter((cell) => sameDir(size, route[route.length - 2], current, cell));
+    cands.sort((a, b) => neighbors[a].filter((c) => !visited[c]).length - neighbors[b].filter((c) => !visited[c]).length);
     for (const cell of cands) {
       visited[cell] = 1; route.push(cell);
       search(cell, needed + (cell in numbers ? 1 : 0));
@@ -249,11 +266,12 @@ function solvePaths(size, numbers, walls, maxNum, limit = 2, mask = null) {
 // Точечные стенки: якорь — ЭТАЛОННОЕ решение (его рёбра неприкосновенны,
 // иначе _solution/hint протухнут). Пока решений >1 — стенка на ребро чужого
 // пути с мин. суммарным cost (бьём дешёвые ложные ходы).
-function sealUniqueness(size, numbers, solution, cost, maxNum, maxWalls, mask = null) {
+// thru прокидывается в решатель: опечатываем единственность С правилом.
+function sealUniqueness(size, numbers, solution, cost, maxNum, maxWalls, mask = null, thru = null) {
   const walls = [];
   const keep = new Set(solution.slice(1).map((c, i) => edgeKey(solution[i], c)));
   for (let guard = 0; guard < maxWalls * 2 + 4; guard++) {
-    const res = solvePaths(size, numbers, walls, maxNum, 2, mask);
+    const res = solvePaths(size, numbers, walls, maxNum, 2, mask, thru);
     // Единственность засчитываем только при полном переборе без капа,
     // и единственный путь обязан совпадать с эталоном
     if (res.found.length === 1 && res.completed) {
@@ -316,6 +334,52 @@ function measure(size, solution, positions, walls, numbers, mask = null) {
   return { decoys, forks, straight, maxGap, turns, decoyPerCell: decoys / n };
 }
 
+// --- М2 Сквозные клетки (пак 6) ---
+// Кандидаты: только позиции, где эталон идёт прямо, и не флажки.
+// obvious — вынужденный ход (cost 0, учит читать черту); corner — у угла
+// (cornerDist ≤ 2, «жадный» обход края умирает, нужен S-заход); fork —
+// на развилке (cost > 0). Разнос ≥3 позиций решения.
+function pickThru(solution, numbers, size, cost, count, mode) {
+  const isNum = new Set(Object.keys(numbers).map(Number));
+  const pool = [];
+  for (let pos = 1; pos < solution.length - 1; pos++) {
+    const cell = solution[pos];
+    if (isNum.has(cell)) continue;
+    if (!sameDir(size, solution[pos - 1], cell, solution[pos + 1])) continue;
+    if (mode === 'corner' && cornerDist(size, cell) > 2) continue;
+    pool.push({ cell, pos, cost: cost[cell], corner: cornerDist(size, cell) });
+  }
+  if (mode === 'obvious') pool.sort((a, b) => a.cost - b.cost || a.pos - b.pos);
+  else if (mode === 'corner') pool.sort((a, b) => a.corner - b.corner || b.cost - a.cost);
+  else pool.sort((a, b) => b.cost - a.cost || a.pos - b.pos);
+  const picks = [];
+  for (const c of pool) {
+    if (picks.length >= count) break;
+    if (picks.every((p) => Math.abs(p.pos - c.pos) >= 3)) picks.push(c);
+  }
+  return picks.map((p) => p.cell);
+}
+
+// Гейт-кандидат М2: есть материал и для fork-, и для corner-, и для
+// obvious-точки. Иначе — в брак, следующий attempt.
+function thruTeachable(solution, numbers, size, cost) {
+  const isNum = new Set(Object.keys(numbers).map(Number));
+  const straight = [];
+  for (let pos = 1; pos < solution.length - 1; pos++) {
+    const cell = solution[pos];
+    if (isNum.has(cell)) continue;
+    if (sameDir(size, solution[pos - 1], cell, solution[pos + 1]))
+      straight.push({ cell, cost: cost[cell], corner: cornerDist(size, cell) });
+  }
+  return straight.some((c) => c.cost > 0) &&
+    straight.some((c) => c.corner <= 2) &&
+    straight.some((c) => c.cost === 0);
+}
+
+// Клеток по роли в паке 6 (T T P P P P P Э Э О), T — ровно по одной.
+const THRU_ROLE_COUNT = [1, 1, 1, 1, 2, 2, 1, 2, 2, 1];
+const THRU_ROLE_MODE = ['obvious', 'corner', 'fork', 'fork', 'fork', 'fork', 'fork', 'fork', 'fork', 'obvious'];
+
 function genCandidate(pack, attempt) {
   const { size } = pack;
   const random = randomSource(hashSeed(`zigzag-v2-${size}-${attempt}`));
@@ -326,7 +390,16 @@ function genCandidate(pack, attempt) {
   const K = randInt(random, pack.k[0], pack.k[1]);
   const { numbers, positions } = optimalWaypoints(solution, cost, K);
   const maxNum = K;
-  const seal = sealUniqueness(size, numbers, solution, cost, maxNum, pack.maxWalls, mask);
+  // М2: сквозные клетки выбираем до опечатывания (только прямые позиции
+  // эталона, не флажки), опечатываем уже С правилом.
+  let thru = null;
+  if (pack.thru) {
+    if (!thruTeachable(solution, numbers, size, cost)) return null;
+    // Предварительный набор для seal-гейта; финальный — по роли в паке.
+    thru = new Set(pickThru(solution, numbers, size, cost, 2, 'fork'));
+    if (!thru.size) return null;
+  }
+  const seal = sealUniqueness(size, numbers, solution, cost, maxNum, pack.maxWalls, mask, thru);
   if (!seal.ok) return null;
   // Teach-гейт масочных паков: без механики (полное поле) уровень обязан
   // решаться НЕ единственным путём — иначе механика ничему не учит.
@@ -337,11 +410,13 @@ function genCandidate(pack, attempt) {
   }
   const m = measure(size, solution, positions, seal.walls, numbers, mask);
   return {
-    size, numbers, walls: seal.walls, solution, positions,
+    size, numbers, walls: seal.walls, solution, positions, cost,
     mask: mask.size === size * size ? null : [...mask].sort((a, b) => a - b),
     m: { ...m, walls: seal.walls.length, solverNodes: seal.nodes, score: Math.round(m.decoyPerCell * 1000) },
   };
 }
+
+const equalPaths = (a, b) => a.length === b.length && a.every((c, i) => c === b[i]);
 
 function main() {
   const smoke = process.argv.includes('--smoke');
@@ -371,7 +446,7 @@ function main() {
   }
   for (const pi of packRange) {
     const pack = packs[pi];
-    const POOL = 80;
+    const POOL = pack.thru ? 200 : 80;
     const pool = [];
     let attempt = 0;
     const t0 = Date.now();
@@ -402,12 +477,43 @@ function main() {
         }
       }
       const band = (ghi - glo) / 2 + Math.min(slack, 2) + 1;
-      chosen = pool
+      const ranked = pool
         .filter((c) => c.m.decoyPerCell >= minDecoy)
         .filter((c) => Math.abs(c.m.maxGap - mid) <= band)
-        .sort((a, b) => (b.m.decoyPerCell - a.m.decoyPerCell) || (b.m.straight - a.m.straight))
-        .filter((c) => { const k = key(c); if (seenPack.has(k)) return false; seenPack.add(k); return true; })
-        .slice(0, pack.count);
+        .sort((a, b) => (a.m.decoyPerCell - b.m.decoyPerCell) || (a.m.straight - b.m.straight));
+      if (!pack.thru) {
+        chosen = [...ranked]
+          .sort((a, b) => (b.m.decoyPerCell - a.m.decoyPerCell) || (b.m.straight - a.m.straight))
+          .filter((c) => { const k = key(c); if (seenPack.has(k)) return false; seenPack.add(k); return true; })
+          .slice(0, pack.count);
+      } else {
+        // М2: точки назначаем по роли в рампе (T T P P P P P Э Э О) и тут же
+        // проверяем финал: с правилом — ровно эталон; без правила — не
+        // единственно (для T и Э обязательно: правило должно грузить).
+        // Не прошло — кандидат пропускаем, берём следующий из пула.
+        chosen = [];
+        for (const cand of ranked) {
+          if (chosen.length >= pack.count) break;
+          const k = key(cand);
+          if (seenPack.has(k)) continue;
+          const role = chosen.length;
+          const dots = pickThru(cand.solution, cand.numbers, pack.size, cand.cost,
+            THRU_ROLE_COUNT[role] ?? 1, THRU_ROLE_MODE[role] ?? 'fork');
+          if (!dots.length || (role < 2 && dots.length !== 1)) continue;
+          const thruSet = new Set(dots);
+          const maxNum = Math.max(...Object.values(cand.numbers));
+          const maskSet = cand.mask ? new Set(cand.mask) : null;
+          const withRule = solvePaths(pack.size, cand.numbers, cand.walls, maxNum, 2, maskSet, thruSet);
+          if (!(withRule.found.length === 1 && withRule.completed && equalPaths(withRule.found[0], cand.solution))) continue;
+          if ([0, 1, 7, 8].includes(role)) {
+            const noRule = solvePaths(pack.size, cand.numbers, cand.walls, maxNum, 2, maskSet, null);
+            if (noRule.found.length === 1 && noRule.completed) continue;
+          }
+          seenPack.add(k);
+          cand.thruDots = dots.sort((a, b) => a - b);
+          chosen.push(cand);
+        }
+      }
       if (chosen.length < pack.count) { seenPack.clear(); slack++; }
     }
     if (chosen.length < pack.count)
@@ -428,6 +534,7 @@ function main() {
         _solution: cand.solution,
       };
       if (cand.mask) entry.mask = cand.mask;
+      if (cand.thruDots) entry.straight = cand.thruDots;
       fresh.push(entry);
     }
     if (onlyPack) {

@@ -58,6 +58,33 @@ for (const l of stripped) {
       }
     }
   }
+  // Гейт М2: сквозные клетки — в поле, не флажки, 1–2 штуки,
+  // только на уровнях 51–60.
+  const numSet = new Set(Object.keys(l.numbers).map(Number));
+  if (l.straight !== undefined) {
+    if (l.id < 51 || l.id > 60) {
+      console.error(`ГЕЙТ ПРОВАЛЕН: straight вне пака 6 на уровне ${l.id}`);
+      process.exit(1);
+    }
+    const full = l.size * l.size;
+    if (!Array.isArray(l.straight) || !l.straight.length || l.straight.length > 2 ||
+        !l.straight.every((c) => Number.isInteger(c) && c >= 0 && c < full) ||
+        new Set(l.straight).size !== l.straight.length) {
+      console.error(`ГЕЙТ ПРОВАЛЕН: битые straight на уровне ${l.id}`);
+      process.exit(1);
+    }
+    if (l.mask && !l.straight.every((c) => new Set(l.mask).has(c))) {
+      console.error(`ГЕЙТ ПРОВАЛЕН: straight вне маски на уровне ${l.id}`);
+      process.exit(1);
+    }
+    if (!l.straight.every((c) => !numSet.has(c))) {
+      console.error(`ГЕЙТ ПРОВАЛЕН: straight на флажке на уровне ${l.id}`);
+      process.exit(1);
+    }
+  } else if (l.id >= 51 && l.id <= 60) {
+    console.error(`ГЕЙТ ПРОВАЛЕН: нет straight на уровне пака 6 (${l.id})`);
+    process.exit(1);
+  }
 }
 
 console.log(`Готово: ${stripped.length} уровней -> levels.build.json, _solution вычищен, гейты зелёные`);
