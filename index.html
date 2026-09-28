@@ -95,6 +95,8 @@
     .number.start::after { content: ''; position: absolute; inset: -6px; border: 1.5px solid rgba(245,117,60,.45); border-radius: 50%; animation: start-pulse 2.8s ease-out infinite; }
     .board.started .number.start::after { animation: none; opacity: 0; }
     .board-cell.visited .number:not(.start) { background: #3b3029; box-shadow: 0 0 0 3px #ffdfc6; }
+    .dot { width: 11px; height: 11px; background: var(--orange); border-radius: 50%; pointer-events: none; box-shadow: 0 0 0 3px rgba(245,117,60,.22); }
+    .board-cell.visited .dot { background: var(--orange-dark); box-shadow: 0 0 0 3px #ffdfc6; }
     .board-cell.just-hit .number { animation: number-pop .35s ease-out; }
     .board-cell.invalid { animation: invalid-cell .4s ease-out; }
     .board-cell.hinted::after { content: ''; position: absolute; inset: 12%; border: 2px dashed var(--orange); border-radius: 12px; background: rgba(245,117,60,.06); animation: hint-pulse 1.6s ease-in-out infinite; pointer-events: none; }
@@ -536,7 +538,7 @@
                 <p>Заполните<br>каждую клетку</p>
               </div>
             </div>
-            <p class="how-note">Без диагоналей и пересечений.<br>Через тёмные стенки проходить нельзя.</p>
+            <p class="how-note">Без диагоналей и пересечений.<br>Через тёмные стенки проходить нельзя.<br>Оранжевая точка — клетка, через которую нужно пройти.</p>
             <button type="button" class="demo-link" id="demoButton">Посмотреть пример<svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></button>
           </div>
         </section>
@@ -850,7 +852,10 @@
           if (num === 1) start = cell;
           if (num > maxNum) maxNum = num;
         });
-        return { id: def.id, size: SIZE, cellCount: CELL_COUNT, mask: maskSet, numbers, walls: def.walls, blocked, neighbors, start, maxNum, hint: def.hint };
+        // М11: обязательные клетки без номера (пак 4, уровни 31–40).
+        // Старые уровни работают без поля — mandatory остаётся null.
+        const mandatory = Array.isArray(def.mandatory) ? new Set(def.mandatory) : null;
+        return { id: def.id, size: SIZE, cellCount: CELL_COUNT, mask: maskSet, numbers, walls: def.walls, blocked, neighbors, start, maxNum, hint: def.hint, mandatory };
       }
 
       function doneCount() { return Object.keys(state.done).length; }
@@ -882,6 +887,17 @@
       // Уровни приходят готовыми из levels.build.json (см. gen-levels.mjs).
       // Браузер ничего не генерирует — только строит puzzle из описания уровня.
 
+      // М11: все обязательные клетки должны войти в путь. Для гамильтониана
+      // (путь покрывает всё поле) это тривиально, но проверка явная —
+      // на случай будущих механик с необязательным покрытием.
+      function coversMandatory(path, data) {
+        if (!data.mandatory || !data.mandatory.size) return true;
+        if (!Array.isArray(path)) return false;
+        const visited = new Set(path);
+        for (const cell of data.mandatory) if (!visited.has(cell)) return false;
+        return true;
+      }
+
       function validPath(path, data, complete = false) {
         if (!Array.isArray(path) || path.length > CELL_COUNT || (complete && path.length !== CELL_COUNT)) return false;
         if (!path.length) return !complete;
@@ -899,6 +915,7 @@
             next++;
           }
         }
+        if (complete && !coversMandatory(path, data)) return false;
         return !complete || next === data.maxNum + 1;
       }
 
@@ -1054,6 +1071,12 @@
               marker.className = `number${number === 1 ? ' start' : ''}`;
               marker.textContent = number;
               button.append(marker);
+            } else if (puzzle.mandatory && puzzle.mandatory.has(cell)) {
+              // М11: точка без номера — через клетку обязательно пройти.
+              const dot = document.createElement('span');
+              dot.className = 'dot';
+              dot.setAttribute('aria-hidden', 'true');
+              button.append(dot);
             }
             button.addEventListener('click', (event) => {
               if (event.detail === 0) {
@@ -1146,7 +1169,8 @@
           button.tabIndex = cell === focusedCell ? 0 : -1;
           button.setAttribute('aria-selected', String(visited.has(cell)));
           const number = puzzle.numbers.get(cell);
-          button.setAttribute('aria-label', `${number ? `Число ${number}. ` : ''}Строка ${row(cell) + 1}, столбец ${col(cell) + 1}${visited.has(cell) ? ', заполнена' : ''}${game.hint === cell ? ', подсказка: следующая клетка' : ''}`);
+          const must = puzzle.mandatory && puzzle.mandatory.has(cell);
+          button.setAttribute('aria-label', `${number ? `Число ${number}. ` : must ? 'Обязательная клетка. ' : ''}Строка ${row(cell) + 1}, столбец ${col(cell) + 1}${visited.has(cell) ? ', заполнена' : ''}${game.hint === cell ? ', подсказка: следующая клетка' : ''}`);
         });
         $('pauseOverlay').hidden = !paused || game.completed;
         $('pauseButton').disabled = !game.path.length || game.completed;
@@ -1362,7 +1386,7 @@
           if (++nodes > 400000 || answer) return;
           if ((nodes & 63) === 0 && (performance.now() > deadline || !viable(current))) return;
           if (route.length === total) {
-            if (current === end && needed === data.maxNum + 1) answer = [...route];
+            if (current === end && needed === data.maxNum + 1 && coversMandatory(route, data)) answer = [...route];
             return;
           }
           const candidates = data.neighbors[current]
@@ -1865,6 +1889,26 @@
           }
         }
         checks++;
+        // М11: точки только на 31–40, 1–2 штуки, не на флажках, teach — ровно 1
+        for (const def of LEVELS) {
+          const hasDots = Array.isArray(def.mandatory);
+          const inPack4 = def.id >= 31 && def.id <= 40;
+          if (inPack4 && !hasDots) { check(false, `Level ${def.id} must have mandatory dots`); break; }
+          if (!inPack4 && hasDots) { check(false, `Level ${def.id} must not have mandatory dots`); break; }
+          if (hasDots) {
+            const dots = def.mandatory;
+            const full = def.size * def.size;
+            if (!dots.length || dots.length > 2 || !dots.every((c) => Number.isInteger(c) && c >= 0 && c < full) || new Set(dots).size !== dots.length) { check(false, `Mandatory dots are valid cells: level ${def.id}`); break; }
+            if (!dots.every((c) => !(c in def.numbers))) { check(false, `Mandatory dots are not waypoints: level ${def.id}`); break; }
+            if (def.id < 33 && dots.length !== 1) { check(false, `Teach levels have exactly 1 dot: level ${def.id}`); break; }
+          }
+        }
+        checks++;
+        // coversMandatory: чистая логика покрытия
+        check(coversMandatory([1, 2, 3], { mandatory: null }) === true, 'No mandatory means covered');
+        check(coversMandatory([1, 2, 3], { mandatory: new Set([2]) }) === true, 'Covered dot passes');
+        check(coversMandatory([1, 2], { mandatory: new Set([2, 3]) }) === false, 'Missing dot fails');
+        check(coversMandatory('nope', { mandatory: new Set([1]) }) === false, 'Non-array path fails');
         // validPath: базовые инварианты на текущем уровне
         const tail = puzzle.neighbors[puzzle.start][0];
         check(!validPath([], puzzle, true) && validPath([], puzzle), 'An empty board is not a completed level');
@@ -1887,6 +1931,7 @@
         // Рендер
         check(cellButtons.filter(Boolean).length === CELL_COUNT && $('boardCells').querySelectorAll('[role="row"]').length === SIZE, 'Accessible grid matches level size');
         check($('boardCells').querySelectorAll('.number').length === puzzle.numbers.size, 'All waypoint markers are rendered');
+        check($('boardCells').querySelectorAll('.dot').length === (puzzle.mandatory ? puzzle.mandatory.size : 0), 'All mandatory dots are rendered');
         check($('pathGradient').getAttribute('gradientUnits') === 'userSpaceOnUse', 'A straight first segment has a visible gradient');
         const ids = [...document.querySelectorAll('[id]')].map((element) => element.id);
         check(new Set(ids).size === ids.length, 'DOM identifiers are unique');

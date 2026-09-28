@@ -58,6 +58,33 @@ for (const l of stripped) {
       }
     }
   }
+  // Гейт М11: точки — в поле, не совпадают с флажками/стартом/подсказкой,
+  // только на уровнях 31–40.
+  const numSet = new Set(Object.keys(l.numbers).map(Number));
+  if (l.mandatory !== undefined) {
+    if (l.id < 31 || l.id > 40) {
+      console.error(`ГЕЙТ ПРОВАЛЕН: mandatory вне пака 4 на уровне ${l.id}`);
+      process.exit(1);
+    }
+    const full = l.size * l.size;
+    if (!Array.isArray(l.mandatory) || !l.mandatory.length || l.mandatory.length > 2 ||
+        !l.mandatory.every((c) => Number.isInteger(c) && c >= 0 && c < full) ||
+        new Set(l.mandatory).size !== l.mandatory.length) {
+      console.error(`ГЕЙТ ПРОВАЛЕН: битые mandatory на уровне ${l.id}`);
+      process.exit(1);
+    }
+    if (l.mask && !l.mandatory.every((c) => new Set(l.mask).has(c))) {
+      console.error(`ГЕЙТ ПРОВАЛЕН: mandatory вне маски на уровне ${l.id}`);
+      process.exit(1);
+    }
+    if (!l.mandatory.every((c) => !numSet.has(c))) {
+      console.error(`ГЕЙТ ПРОВАЛЕН: mandatory на флажке на уровне ${l.id}`);
+      process.exit(1);
+    }
+  } else if (l.id >= 31 && l.id <= 40) {
+    console.error(`ГЕЙТ ПРОВАЛЕН: нет mandatory на уровне пака 4 (${l.id})`);
+    process.exit(1);
+  }
 }
 
 console.log(`Готово: ${stripped.length} уровней -> levels.build.json, _solution вычищен, гейты зелёные`);
