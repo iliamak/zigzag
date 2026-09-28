@@ -1763,6 +1763,8 @@
         const directions = { ArrowUp: -SIZE, ArrowDown: SIZE, ArrowLeft: -1, ArrowRight: 1 };
         if (event.key in directions) {
           event.preventDefault();
+          // Стрелка с пустого поля: тихо стартуем линию с «1» и сразу идём.
+          if (!game.path.length && !game.completed && !attemptCell(puzzle.start, true)) return;
           const source = game.path.length && !game.completed ? game.path.at(-1) : focusedCell;
           const target = source + directions[event.key];
           if (target < 0 || target >= SIZE * SIZE || distance(source, target) !== 1) return;
