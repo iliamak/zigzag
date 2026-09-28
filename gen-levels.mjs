@@ -12,18 +12,13 @@ import { readFileSync, writeFileSync } from 'node:fs';
 
 // size, K range, maxGap band, straightDecoys min, maxWalls — из шторма §2-3
 // mask: null (квадрат) | 'shapes' М4 (пак 2) | 'holes' М12 (пак 3)
-// mandatory: true — М11 обязательные клетки (пак 4): метка без номера,
-//   линия обязана пройти. Гамильтониан покрывает всё поле, поэтому М11 —
-//   покрывающая подсказка, а не ограничение: классический teach-гейт
-//   «0 решений без механики» здесь неприменим (снятие точек не ломает
-//   решаемость). Честный гейт: точки лежат на решении, не совпадают
-//   с флажками, и хотя бы одна стоит на развилке (decoyCost > 0) —
-//   иначе точке нечему учить. T-уровни: ровно одна точка.
+// FR-11: М11 (обязательные клетки) из пака 4 убрана — покрывающая подсказка
+// без логического смысла. Пак 4 — чистые 5×5, рампу держит плотность decoy.
 const PACKS = [
   { size: 4, count: 10, k: [4, 4], gap: [6, 7], straight: 0, maxWalls: 2, mask: null },
   { size: 5, count: 10, k: [5, 8], gap: [6, 7], straight: 0, maxWalls: 4, mask: 'shapes' },
   { size: 5, count: 10, k: [5, 8], gap: [7, 8], straight: 3, maxWalls: 4, mask: 'holes' },
-  { size: 5, count: 10, k: [5, 8], gap: [8, 9], straight: 0, maxWalls: 4, mask: null, mandatory: true },
+  { size: 5, count: 10, k: [5, 8], gap: [8, 9], straight: 0, maxWalls: 4, mask: null },
   { size: 6, count: 10, k: [6, 10], gap: [7, 8], straight: 5, maxWalls: 6, mask: null },
   { size: 6, count: 10, k: [6, 10], gap: [8, 9], straight: 0, maxWalls: 6, mask: null },
   { size: 6, count: 10, k: [6, 10], gap: [9, 10], straight: 0, maxWalls: 6, mask: null },
@@ -195,11 +190,7 @@ function buildNeighbors(size, walls, mask = null) {
 
 // DFS до первых `limit` полных путей. completed=false, если упёрлись в кап —
 // тогда found.length===1 НЕ гарантирует единственность!
-// mandatory: массив клеток М11 — финальная проверка покрытия. Для гамильтониана
-// она тривиальна (полный путь покрывает всё), но проверка явная: прунинг
-// недостижимости обязательных уже сидит в viable() (связность от головы),
-// здесь — финальный инвариант.
-function solvePaths(size, numbers, walls, maxNum, limit = 2, mask = null, mandatory = null) {
+function solvePaths(size, numbers, walls, maxNum, limit = 2, mask = null) {
   const total = size * size;
   const cells = mask ? mask.size : total;
   const neighbors = buildNeighbors(size, walls, mask);
@@ -238,8 +229,7 @@ function solvePaths(size, numbers, walls, maxNum, limit = 2, mask = null, mandat
     if (++nodes > SOLVER_CAP) { capped = true; return; }
     if ((nodes & 63) === 0 && !viable(current)) return;
     if (route.length === cells) {
-      if (current === end && needed === maxNum + 1 && (!mandatory || mandatory.every((c) => visited[c])))
-        found.push([...route]);
+      if (current === end && needed === maxNum + 1) found.push([...route]);
       return;
     }
     const cands = neighbors[current]
@@ -326,42 +316,6 @@ function measure(size, solution, positions, walls, numbers, mask = null) {
   return { decoys, forks, straight, maxGap, turns, decoyPerCell: decoys / n };
 }
 
-// --- М11 Обязательные клетки (пак 4) ---
-// Выбор точек по роли в паке. obvious: точка на вынужденном ходу (cost 0,
-// учит читать точку). fork: точка на развилке (cost > 0, учит выбирать).
-// T31 — obvious (первая половина решения), T32 — fork во второй половине
-// («против шерсти»: сначала уйти в дальний угол). Точки не ближе 3 позиций
-// решения друг к другу и никогда не совпадают с флажками.
-function pickMandatory(solution, numbers, cost, count, obvious, secondHalf) {
-  const isNum = new Set(Object.keys(numbers).map(Number));
-  const n = solution.length;
-  const pool = [];
-  solution.forEach((cell, pos) => {
-    if (isNum.has(cell)) return;
-    if (secondHalf && pos < Math.floor(n / 2)) return;
-    if (obvious && pos >= Math.floor(n / 2)) return;
-    pool.push({ cell, pos, cost: cost[cell] });
-  });
-  pool.sort((a, b) => (obvious ? a.cost - b.cost || a.pos - b.pos : b.cost - a.cost || a.pos - b.pos));
-  const picks = [];
-  for (const c of pool) {
-    if (picks.length >= count) break;
-    if (picks.every((p) => Math.abs(p.pos - c.pos) >= 3)) picks.push(c);
-  }
-  return picks.map((p) => p.cell);
-}
-
-// Проверка-гейт кандидата М11: точке есть где учить (есть свободная клетка
-// решения на развилке) и есть где показать очевидное (cost 0). Иначе — в брак.
-function mandatoryTeachable(solution, numbers, cost) {
-  const isNum = new Set(Object.keys(numbers).map(Number));
-  const free = solution.filter((c) => !isNum.has(c));
-  return free.some((c) => cost[c] > 0) && free.some((c) => cost[c] === 0);
-}
-
-// Точек по роли в паке 4 (T T P P P P P Э Э О), T — ровно по одной.
-const M11_ROLE_COUNT = [1, 1, 1, 1, 2, 2, 1, 2, 2, 1];
-
 function genCandidate(pack, attempt) {
   const { size } = pack;
   const random = randomSource(hashSeed(`zigzag-v2-${size}-${attempt}`));
@@ -381,12 +335,9 @@ function genCandidate(pack, attempt) {
     const ref = solvePaths(size, numbers, seal.walls, maxNum, 2, null);
     if (ref.found.length === 1 && ref.completed) return null;
   }
-  // Teach-гейт М11: уровень обязан давать материал и для obvious-, и для
-  // fork-точки. Точки назначим позже по роли в отсортированном паке.
-  if (pack.mandatory && !mandatoryTeachable(solution, numbers, cost)) return null;
   const m = measure(size, solution, positions, seal.walls, numbers, mask);
   return {
-    size, numbers, walls: seal.walls, solution, positions, cost,
+    size, numbers, walls: seal.walls, solution, positions,
     mask: mask.size === size * size ? null : [...mask].sort((a, b) => a - b),
     m: { ...m, walls: seal.walls.length, solverNodes: seal.nodes, score: Math.round(m.decoyPerCell * 1000) },
   };
@@ -463,24 +414,6 @@ function main() {
       throw new Error(`Пак ${pi + 1} (${pack.size}x${pack.size}): отобрано ${chosen.length}/${pack.count} из пула ${pool.length}`);
     // Внутри пака — по возрастанию (рампа)
     chosen.sort((a, b) => a.m.decoyPerCell - b.m.decoyPerCell || a.m.straight - b.m.straight);
-    // М11: точки назначаем по роли в отсортированном паке (T T P P P P P Э Э О).
-    // T31 — obvious в первой половине, T32 — fork во второй («против шерсти»),
-    // остальные fork, O40 — obvious лёгкая. T — ровно по одной точке.
-    if (pack.mandatory) {
-      chosen.forEach((cand, i) => {
-        const count = M11_ROLE_COUNT[i] ?? 1;
-        const obvious = i === 0 || i === chosen.length - 1;
-        const secondHalf = i === 1;
-        const dots = pickMandatory(cand.solution, cand.numbers, cand.cost, count, obvious, secondHalf);
-        // Гейты М11: точка есть; T-уровни — ровно одна; не-obvious роли —
-        // хотя бы одна точка на развилке (cost > 0), иначе точке нечему учить.
-        if (!dots.length) throw new Error(`Пак ${pi + 1}: роль ${i} — точки М11 не назначились`);
-        if (i < 2 && dots.length !== 1) throw new Error(`Пак ${pi + 1}: teach-роль ${i} — нужна ровно 1 точка`);
-        if (!obvious && !dots.some((d) => cand.cost[d] > 0))
-          throw new Error(`Пак ${pi + 1}: роль ${i} — точка не на развилке, в брак`);
-        cand.mandatoryDots = dots.sort((a, b) => a - b);
-      });
-    }
     const ds = chosen.map((c) => c.m.decoyPerCell).sort((a, b) => a - b);
     prevMedian = ds[Math.floor(ds.length / 2)];
     const fresh = [];
@@ -495,7 +428,6 @@ function main() {
         _solution: cand.solution,
       };
       if (cand.mask) entry.mask = cand.mask;
-      if (cand.mandatoryDots) entry.mandatory = cand.mandatoryDots;
       fresh.push(entry);
     }
     if (onlyPack) {
