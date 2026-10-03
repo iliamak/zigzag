@@ -9,9 +9,9 @@
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='17' fill='%23f5753c'/%3E%3Cpath d='M17 19v27h15V19h15v27' fill='none' stroke='white' stroke-width='7' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+  <noscript><link href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"></noscript>
   <script async src="https://games.pikabu.ru/sdk/sdk.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
   <style>
     :root {
       --paper: #f7f7f2;
@@ -449,7 +449,7 @@
   </svg>
 
   <header class="site-header">
-    <div class="brand-group flex items-center">
+    <div class="brand-group">
       <a class="brand" href="#" id="homeLink" aria-label="Зигзаг, главная">
         <svg class="brand-mark" viewBox="0 0 40 40" aria-hidden="true"><rect width="40" height="40" rx="11" fill="#f5753c"/><path d="M10 12v17h10V12h10v17" fill="none" stroke="#fff" stroke-width="4.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
         <span class="brand-word">зигзаг</span>
@@ -632,7 +632,21 @@
               await pkbTimeout(pkb.sdk.ads.preloader.show());
             }
           } catch { /* Preloader недоступен — стартуем как обычно. */ }
-          try { pkb.sdk.once?.('userAuthorized', () => { cloudSync(); }); } catch { /* События необязательны. */ }
+          try { pkb.sdk.once?.('userAuthorized', async () => {
+            // Смена id при входе: подтянуть облако нового id, смигрировать локальное.
+            await cloudPull();
+            if (puzzle && game && state.inprogress?.id === levelId) {
+              const migrated = restoreGame(state.inprogress, puzzle);
+              if (migrated.path.length > game.path.length) {
+                syncClock();
+                game = migrated;
+                paused = false;
+                syncClock();
+                render();
+              }
+            }
+            persist();
+          }); } catch { /* События необязательны. */ }
           return true;
         } catch { return false; }
       }
@@ -691,7 +705,55 @@
           if (dialog.open) dialog.close();
         } catch { showToast('Не получилось открыть оплату.'); }
       }
-      function cloudSync() { /* Bothost/Supabase — следующим этапом (PIKABU_PLAN.md п.6–7). */ }
+      // --- Облачные сейвы: свой API (Bothost + Supabase), fallback — localStorage ---
+      // Вне нашего хостинга (/api/* нет) и при ошибках сети — тихо, игра живёт локально.
+      const cloud = { timer: null };
+      function cloudPlayerId() {
+        try { return pkb.sdk?.player?.id || state.profile.id; }
+        catch { return state.profile.id; }
+      }
+      async function cloudPull() {
+        // Подтянуть облако в локальный state. Merge: объединение done (лучшее время),
+        // max current, inprogress — более длинный путь того же уровня.
+        let remote = null;
+        try {
+          const res = await fetch(`api/load?player_id=${encodeURIComponent(cloudPlayerId())}`);
+          if (res.ok) remote = (await res.json())?.progress || null;
+        } catch { remote = null; }
+        if (!remote || typeof remote !== 'object') return false;
+        const clean = sanitizeState({ ...remote, version: 1 });
+        let changed = false;
+        for (const [key, value] of Object.entries(clean.done)) {
+          const prev = state.done[key];
+          if (!prev) { state.done[key] = value; changed = true; }
+          else {
+            const t = prev.t && value.t ? Math.min(prev.t, value.t) : (prev.t || value.t);
+            const h = Math.min(prev.h ?? 9999, value.h ?? 9999);
+            if (t !== prev.t || h !== prev.h) { state.done[key] = { t, h }; changed = true; }
+          }
+        }
+        if (clean.current > state.current) { state.current = clean.current; changed = true; }
+        if (clean.noAds && !state.noAds) { state.noAds = true; changed = true; }
+        const rip = clean.inprogress;
+        if (rip && rip.id === levelId && rip.path.length > (state.inprogress?.path.length || 0)) {
+          state.inprogress = rip;
+          changed = true;
+        }
+        return changed;
+      }
+      async function cloudPush() {
+        try {
+          await fetch('api/save', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ player_id: cloudPlayerId(), progress: state }),
+          });
+        } catch { /* localStorage уже записан в persist(). */ }
+      }
+      function cloudSync() {
+        clearTimeout(cloud.timer);
+        cloud.timer = setTimeout(cloudPush, 2000);
+      }
 
       // --- Фоновая музыка: генеративный лоуфай v1 (FR-2) ---
       // Только фон, без файлов: Rhodes-септаккорды, кик+хэт со свингом,
@@ -1960,6 +2022,7 @@
           return;
         }
         if (!levelDef(levelId)) levelId = 1;
+        await cloudPull(); // облако старше локального? смержить до построения уровня
         puzzle = buildPuzzle(levelDef(levelId));
         game = (state.inprogress?.id === levelId) ? restoreGame(state.inprogress, puzzle) : restoreGame(null, puzzle);
         paused = game.path.length > 0 && !game.completed;
