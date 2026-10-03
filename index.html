@@ -615,6 +615,43 @@
       let modalOrigin = null;
       let pendingResult = false;
 
+      // --- Диагностика: кольцевой лог + тайминги (разбор будущих фризов) ---
+      // В проде тихо: всё копится в памяти (500 записей), в консоль — только с ?debug=1.
+      // После фриза: zzDump() в консоли. Снимок состояния: zzState().
+      const ZZ_LOG_CAP = 500;
+      const zzLogBuf = [];
+      const ZZ_DEBUG = new URLSearchParams(location.search).has('debug');
+      function zzNow() { try { return performance.now(); } catch { return Date.now(); } }
+      function zzPush(kind, msg, ms) {
+        zzLogBuf.push({ t: Math.round(zzNow()), kind, msg, ms: ms === undefined ? null : Math.round(ms * 10) / 10 });
+        if (zzLogBuf.length > ZZ_LOG_CAP) zzLogBuf.splice(0, zzLogBuf.length - ZZ_LOG_CAP);
+        if (ZZ_DEBUG) console.debug(`[zz:${kind}]`, msg, ms === undefined ? '' : `${ms.toFixed(1)}ms`);
+      }
+      function zzState() {
+        return {
+          dialog: dialog.open, modal: modalKind, paused, adOpen,
+          level: levelId, path: game ? game.path.length : null,
+          done: game ? game.completed : null,
+          active: document.activeElement ? (document.activeElement.id || document.activeElement.tagName) : null,
+        };
+      }
+      window.zzDump = () => {
+        const out = { state: zzState(), log: [...zzLogBuf] };
+        console.info('[zz] state:', out.state);
+        console.info('[zz] log:', out.log);
+        return out;
+      };
+      window.zzState = zzState;
+      if ('PerformanceObserver' in window) {
+        try {
+          new PerformanceObserver((list) => {
+            for (const entry of list.getEntries()) zzPush('longtask', entry.name || 'task', entry.duration);
+          }).observe({ entryTypes: ['longtask'] });
+        } catch { /* не везде поддерживается */ }
+      }
+      window.addEventListener('error', (e) => zzPush('error', `${e.message} @${(e.filename || '').split('/').pop()}:${e.lineno}`));
+      window.addEventListener('unhandledrejection', (e) => zzPush('reject', String((e.reason && e.reason.message) || e.reason)));
+
       // --- Pikabu SDK: все вызовы защищены, без платформы игра работает локально ---
       const pkb = { sdk: null };
       // Любой вызов SDK может повесить промис вне платформы — все await через таймаут.
@@ -1207,6 +1244,11 @@
       }
 
       function render() {
+        const _t0 = zzNow();
+        try { renderBody(); }
+        finally { const _d = zzNow() - _t0; if (_d > 16 || ZZ_DEBUG) zzPush('render', `level=${levelId}`, _d); }
+      }
+      function renderBody() {
         const visited = new Set(game.path);
         board.classList.toggle('started', game.path.length > 0);
         board.classList.toggle('complete', game.completed);
@@ -1286,6 +1328,11 @@
       }
 
       function attemptCell(cell, quiet = false) {
+        const _t0 = zzNow();
+        try { return attemptCellBody(cell, quiet); }
+        finally { const _d = zzNow() - _t0; if (_d > 16 || ZZ_DEBUG) zzPush('attempt', `cell=${cell} q=${quiet}`, _d); }
+      }
+      function attemptCellBody(cell, quiet = false) {
         if (adOpen || game.completed || paused || dialog.open || !Number.isInteger(cell) || cell < 0 || cell >= SIZE * SIZE) return false;
         if (puzzle.mask && !puzzle.mask.has(cell)) return invalidMove(cell, 'Сюда нельзя — здесь вырез.', quiet);
         if (!game.path.length) {
@@ -1360,6 +1407,7 @@
       }
 
       function togglePause(force) {
+        zzPush('pause', `force=${force} was=${paused}`);
         if (!game.path.length || game.completed || dialog.open) return;
         syncClock();
         paused = typeof force === 'boolean' ? force : !paused;
@@ -1404,11 +1452,17 @@
 
       // Общий решатель без эталонного решения: ищет любое продолжение пути.
       function findContinuation(data, prefix) {
+        const _t0 = zzNow();
+        try { return findContinuationBody(data, prefix); }
+        finally { zzPush('solver-call', `prefix=${prefix.length}`, zzNow() - _t0); }
+      }
+      function findContinuationBody(data, prefix) {
+        const _t0 = zzNow();
         const total = data.cellCount || CELL_COUNT;
         const span = data.size * data.size; // массивы — по id клеток (дырки тоже)
         const inField = (cell) => !data.mask || data.mask.has(cell);
         const end = [...data.numbers.entries()].find(([, num]) => num === data.maxNum)?.[0];
-        if (end === undefined || !prefix.length) return null;
+        if (end === undefined || !prefix.length) { zzPush('solver', 'empty', zzNow() - _t0); return null; }
         const visited = new Uint8Array(span);
         prefix.forEach((cell) => { visited[cell] = 1; });
         const route = [...prefix];
@@ -1463,10 +1517,16 @@
           }
         }
         if (viable(prefix.at(-1))) search(prefix.at(-1), next);
+        zzPush('solver', `size=${data.size} prefix=${prefix.length} nodes=${nodes} found=${!!answer}`, zzNow() - _t0);
         return answer;
       }
 
       function grantHint() {
+        const _t0 = zzNow();
+        try { grantHintBody(); }
+        finally { zzPush('hint', `level=${levelId} path=${game ? game.path.length : '?'}`, zzNow() - _t0); }
+      }
+      function grantHintBody() {
         // С пустого поля — запечённая подсказка (мгновенно, без перебора).
         if (!game.path.length && Number.isInteger(puzzle.hint)) {
           game.hints = Math.min(9999, game.hints + 1);
@@ -1545,6 +1605,7 @@
       }
 
       function finishGame() {
+        zzPush('finish', `level=${levelId} path=${game ? game.path.length : '?'}`);
         if (game.completed || !validPath(game.path, puzzle, true)) return;
         syncClock();
         game.completed = true;
@@ -1821,6 +1882,7 @@
       });
       ['pointerup', 'pointercancel', 'lostpointercapture'].forEach((name) => board.addEventListener(name, (event) => { if (pointerId === event.pointerId) { stopPointer(); persist(); } }));
       board.addEventListener('keydown', (event) => {
+        zzPush('key', event.key);
         if (dialog.open || paused) return;
         const directions = { ArrowUp: -SIZE, ArrowDown: SIZE, ArrowLeft: -1, ArrowRight: 1 };
         if (event.key in directions) {
@@ -1999,11 +2061,13 @@
         check($('pathGradient').getAttribute('gradientUnits') === 'userSpaceOnUse', 'A straight first segment has a visible gradient');
         const ids = [...document.querySelectorAll('[id]')].map((element) => element.id);
         check(new Set(ids).size === ids.length, 'DOM identifiers are unique');
+        check(typeof window.zzDump === 'function' && typeof window.zzState === 'function', 'Diagnostics hooks installed');
         check([...document.querySelectorAll('use[href^="#"]')].every((element) => $(element.getAttribute('href').slice(1))), 'SVG icon references resolve');
         return { checks, passed: checks - failures.length, failures };
       }
 
       async function boot() {
+        zzPush('boot', 'start');
         await pkbInit(); // внутри: preloader до gameStarted (только мобайл)
         let res;
         try { res = await fetch(LEVELS_URL, { cache: 'no-store' }); } catch { res = null; }
@@ -2040,6 +2104,7 @@
         if (DEV) { state.noAds = true; setupDevPanel(); } // dev: без рекламы и с панелью
         if (uiReady) renderSide();
         pkbStarted();
+        zzPush('boot', `ready level=${levelId}`);
         if (pendingResult && !dialog.open) setTimeout(() => { if (pendingResult && !dialog.open) showResult(); }, 400);
       }
       setInterval(() => {
