@@ -11,7 +11,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
   <noscript><link href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"></noscript>
-  <script async src="https://games.pikabu.ru/sdk/sdk.js"></script>
+  <script defer src="https://games.pikabu.ru/sdk/sdk.js"></script>
   <style>
     :root {
       --paper: #f7f7f2;
@@ -578,7 +578,7 @@
     (() => {
       const $ = (id) => document.getElementById(id);
       const STORAGE_KEY = 'zigzag.progress.v1';
-      const LEVELS_URL = 'levels.build.json';
+      const LEVELS_URL = 'levels.build.json?v=2026-09-20';
       const NO_ADS_PRODUCT_ID = 'no_ads';
       const FULLSCREEN_EVERY = 4; // fullscreen-реклама раз в 4–5 пройденных уровней
       const SVG_NS = 'http://www.w3.org/2000/svg';
