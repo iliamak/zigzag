@@ -130,6 +130,8 @@ class Handler(BaseHTTPRequestHandler):
         if origin:
             self.send_header("Access-Control-Allow-Origin", origin)
             self.send_header("Vary", "Origin")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("X-Frame-Options", "DENY")
         for key, value in (extra or {}).items():
             self.send_header(key, value)
         self.end_headers()
@@ -267,6 +269,9 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("Cache-Control", "no-cache, must-revalidate")
         else:
             self.send_header("Cache-Control", "public, max-age=31536000, immutable")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("X-Frame-Options", "DENY")
+        self.send_header("Content-Security-Policy", "default-src 'self' https://games.pikabu.ru https://fonts.googleapis.com https://fonts.gstatic.com; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://games.pikabu.ru; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data:;")
         self.end_headers()
         self.wfile.write(data)
 
