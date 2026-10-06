@@ -1,0 +1,4 @@
+## 2026-10-06 - X-Forwarded-For IP Spoofing & Dictionary Memory Exhaustion in Rate Limiter
+**Vulnerability:** Implementing a naive rate limiter using `handler.headers.get("X-Forwarded-For", ...).split(",")[0]` allows attackers to easily bypass rate limits by spoofing the left-most IP. Additionally, storing rate limit timestamps in a dict without an eviction policy leads to memory exhaustion (OOM DoS).
+**Learning:** For apps behind proxies (Bothost/Vercel), the right-most IP in `X-Forwarded-For` is appended by the proxy and is the only trustworthy IP. Unbounded dictionaries for IP tracking create immediate DoS vectors.
+**Prevention:** Always extract the right-most IP `forwarded.split(",")[-1].strip()` when using `X-Forwarded-For` and implement a max size or eviction mechanism (e.g., `if len(RATE_LIMITS) > 10000: clean()`) for memory stores.
