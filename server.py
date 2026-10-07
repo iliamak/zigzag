@@ -33,6 +33,36 @@ PLAYER_RE = re.compile(r"^[\w-]{6,64}$")
 MAX_BODY = 256 * 1024
 _last_tg_alert = 0.0
 
+import threading
+
+RATE_LIMITS = {}
+RATE_LIMIT_LOCK = threading.Lock()
+
+def check_rate_limit(handler, limit=30, period=60):
+    header = handler.headers.get("X-Forwarded-For", "")
+    if header:
+        ip = header.split(",")[-1].strip()
+    else:
+        ip = handler.client_address[0]
+
+    now = time.time()
+    with RATE_LIMIT_LOCK:
+        # Periodic cleanup to prevent unbounded memory growth
+        if len(RATE_LIMITS) > 1000:
+            for k in list(RATE_LIMITS.keys()):
+                RATE_LIMITS[k] = [t for t in RATE_LIMITS[k] if now - t < period]
+                if not RATE_LIMITS[k]:
+                    del RATE_LIMITS[k]
+
+        times = RATE_LIMITS.get(ip, [])
+        times = [t for t in times if now - t < period]
+        if len(times) >= limit:
+            RATE_LIMITS[ip] = times
+            return False
+        times.append(now)
+        RATE_LIMITS[ip] = times
+        return True
+
 MIME = {
     ".html": "text/html; charset=utf-8",
     ".json": "application/json; charset=utf-8",
@@ -185,6 +215,9 @@ class Handler(BaseHTTPRequestHandler):
 
     # --- api ---
     def handle_load(self, query):
+        if not check_rate_limit(self, limit=30, period=60):
+            self.send_json(429, {"error": "too_many_requests"})
+            return
         player_id = query.get("player_id", "")
         if not valid_player(player_id):
             self.send_json(400, {"error": "bad_player_id"})
@@ -210,6 +243,9 @@ class Handler(BaseHTTPRequestHandler):
         self.send_json(200, {"progress": progress})
 
     def handle_save(self):
+        if not check_rate_limit(self, limit=30, period=60):
+            self.send_json(429, {"error": "too_many_requests"})
+            return
         data = self.read_json()
         if not data:
             self.send_json(400, {"error": "bad_json"})

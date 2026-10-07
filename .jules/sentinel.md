@@ -1,0 +1,4 @@
+## 2024-10-07 - X-Forwarded-For IP Spoofing Prevention in Rate Limiter
+**Vulnerability:** When running behind proxies like Bothost or Vercel, client IPs are typically passed via the `X-Forwarded-For` header. If an application uses the left-most IP or blindly trusts this header for rate limiting without validating the proxy chain, attackers can spoof their IP by sending a fake `X-Forwarded-For` header, bypassing the rate limits entirely. This makes the application vulnerable to brute-force and IDOR attacks.
+**Learning:** `X-Forwarded-For` header values take the form `client, proxy1, proxy2`. Any IP added by the client will appear on the left. The proxy infrastructure append the actual connecting IP to the end (right-most).
+**Prevention:** Always extract the right-most IP address from the `X-Forwarded-For` header when identifying the true client behind a trusted proxy layer.
