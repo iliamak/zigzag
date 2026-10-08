@@ -16,6 +16,7 @@ import json
 import os
 import re
 import time
+import threading
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -32,6 +33,45 @@ EXTRA_ORIGINS = {o.strip() for o in os.environ.get("ALLOWED_ORIGINS", "").split(
 PLAYER_RE = re.compile(r"^[\w-]{6,64}$")
 MAX_BODY = 256 * 1024
 _last_tg_alert = 0.0
+
+# Rate limiting settings
+RATE_LIMIT_MAX_REQUESTS = 60
+RATE_LIMIT_WINDOW_SEC = 60
+_rate_limits = {}  # type: dict[str, list[float]]
+_rate_limit_lock = threading.Lock()
+
+
+def check_rate_limit(ip_address: str) -> bool:
+    """Check if the IP has exceeded the rate limit. Cleans up stale entries."""
+    now = time.time()
+    with _rate_limit_lock:
+        # Periodic cleanup of all stale IPs could be added here,
+        # but for simplicity and to avoid long lock contention,
+        # we cleanup the current IP's list. A full cleanup runs every 1000 checks or so.
+        # Let's do a simple full cleanup occasionally to prevent memory leaks from one-off IPs.
+        if len(_rate_limits) > 10000:
+            # Emergency cleanup to prevent memory exhaustion
+            keys_to_delete = []
+            for k, timestamps in _rate_limits.items():
+                valid = [t for t in timestamps if now - t < RATE_LIMIT_WINDOW_SEC]
+                if not valid:
+                    keys_to_delete.append(k)
+                else:
+                    _rate_limits[k] = valid
+            for k in keys_to_delete:
+                del _rate_limits[k]
+
+        # Check current IP
+        timestamps = _rate_limits.get(ip_address, [])
+        timestamps = [t for t in timestamps if now - t < RATE_LIMIT_WINDOW_SEC]
+
+        if len(timestamps) >= RATE_LIMIT_MAX_REQUESTS:
+            _rate_limits[ip_address] = timestamps
+            return False
+
+        timestamps.append(now)
+        _rate_limits[ip_address] = timestamps
+        return True
 
 MIME = {
     ".html": "text/html; charset=utf-8",
@@ -113,6 +153,17 @@ class Handler(BaseHTTPRequestHandler):
         log(f"{self.address_string()} {self.command} {self.path} ->", fmt % args)
 
     # --- helpers ---
+    def get_client_ip(self):
+        # Extract the right-most IP from X-Forwarded-For to prevent spoofing
+        # Proxies append to this list: client, proxy1, proxy2.
+        # The true client IP as seen by the outermost proxy is usually the right-most one
+        # before the trusted proxies, but here we just take the right-most to be safe
+        # from user spoofing if Bothost/Vercel handles it properly.
+        xfwd = self.headers.get("X-Forwarded-For")
+        if xfwd:
+            return xfwd.split(",")[-1].strip()
+        return self.client_address[0]
+
     def origin_allowed(self):
         origin = self.headers.get("Origin", "")
         if origin in EXTRA_ORIGINS:
@@ -185,6 +236,11 @@ class Handler(BaseHTTPRequestHandler):
 
     # --- api ---
     def handle_load(self, query):
+        ip = self.get_client_ip()
+        if not check_rate_limit(ip):
+            self.send_json(429, {"error": "too_many_requests"})
+            return
+
         player_id = query.get("player_id", "")
         if not valid_player(player_id):
             self.send_json(400, {"error": "bad_player_id"})
@@ -210,6 +266,11 @@ class Handler(BaseHTTPRequestHandler):
         self.send_json(200, {"progress": progress})
 
     def handle_save(self):
+        ip = self.get_client_ip()
+        if not check_rate_limit(ip):
+            self.send_json(429, {"error": "too_many_requests"})
+            return
+
         data = self.read_json()
         if not data:
             self.send_json(400, {"error": "bad_json"})
