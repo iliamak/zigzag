@@ -19,6 +19,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
@@ -32,6 +33,32 @@ EXTRA_ORIGINS = {o.strip() for o in os.environ.get("ALLOWED_ORIGINS", "").split(
 PLAYER_RE = re.compile(r"^[\w-]{6,64}$")
 MAX_BODY = 256 * 1024
 _last_tg_alert = 0.0
+
+_rate_limits = {}
+_rate_limits_lock = threading.Lock()
+_last_cleanup = 0.0
+
+def check_rate_limit(ip, limit=100, window=60):
+    global _last_cleanup
+    now = time.time()
+    with _rate_limits_lock:
+        if now - _last_cleanup > 60:
+            for k in list(_rate_limits.keys()):
+                valid = [t for t in _rate_limits[k] if now - t < window]
+                if valid:
+                    _rate_limits[k] = valid
+                else:
+                    del _rate_limits[k]
+            _last_cleanup = now
+
+        reqs = _rate_limits.setdefault(ip, [])
+        valid_reqs = [t for t in reqs if now - t < window]
+        if len(valid_reqs) >= limit:
+            _rate_limits[ip] = valid_reqs
+            return False
+        valid_reqs.append(now)
+        _rate_limits[ip] = valid_reqs
+        return True
 
 MIME = {
     ".html": "text/html; charset=utf-8",
@@ -113,6 +140,12 @@ class Handler(BaseHTTPRequestHandler):
         log(f"{self.address_string()} {self.command} {self.path} ->", fmt % args)
 
     # --- helpers ---
+    def get_client_ip(self):
+        xff = self.headers.get("X-Forwarded-For")
+        if xff:
+            return xff.split(",")[-1].strip()
+        return self.client_address[0]
+
     def origin_allowed(self):
         origin = self.headers.get("Origin", "")
         if origin in EXTRA_ORIGINS:
@@ -165,22 +198,32 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         parsed = urllib.parse.urlparse(self.path)
-        if parsed.path == "/api/health":
-            self.send_json(200, {"ok": True, "time": int(time.time())})
-            return
-        if parsed.path == "/api/load":
-            self.handle_load(parse_qs_first(parsed.query))
-            return
-        if parsed.path == "/api/save" or parsed.path.startswith("/api/"):
-            self.send_json(404 if parsed.path != "/api/save" else 405, {"error": "not_found"})
+        if parsed.path.startswith("/api/"):
+            if not check_rate_limit(self.get_client_ip()):
+                self.send_json(429, {"error": "too_many_requests"})
+                return
+            if parsed.path == "/api/health":
+                self.send_json(200, {"ok": True, "time": int(time.time())})
+                return
+            if parsed.path == "/api/load":
+                self.handle_load(parse_qs_first(parsed.query))
+                return
+            if parsed.path == "/api/save":
+                self.send_json(405, {"error": "not_found"})
+                return
+            self.send_json(404, {"error": "not_found"})
             return
         self.serve_static(parsed.path)
 
     def do_POST(self):
         parsed = urllib.parse.urlparse(self.path)
-        if parsed.path == "/api/save":
-            self.handle_save()
-            return
+        if parsed.path.startswith("/api/"):
+            if not check_rate_limit(self.get_client_ip()):
+                self.send_json(429, {"error": "too_many_requests"})
+                return
+            if parsed.path == "/api/save":
+                self.handle_save()
+                return
         self.send_json(404, {"error": "not_found"})
 
     # --- api ---
