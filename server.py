@@ -33,6 +33,9 @@ PLAYER_RE = re.compile(r"^[\w-]{6,64}$")
 MAX_BODY = 256 * 1024
 _last_tg_alert = 0.0
 
+_rate_limits = {}
+_last_cleanup = 0.0
+
 MIME = {
     ".html": "text/html; charset=utf-8",
     ".json": "application/json; charset=utf-8",
@@ -48,6 +51,26 @@ STATIC_FILES = {"index.html", "levels.build.json", "shag.html"}
 
 def log(*args):
     print(time.strftime("[%Y-%m-%d %H:%M:%S]"), *args, flush=True)
+
+
+def check_rate_limit(ip):
+    """Rate limiting (30 requests per 60 seconds)."""
+    global _last_cleanup, _rate_limits
+    now = time.time()
+    if now - _last_cleanup > 60:
+        _rate_limits = {k: v for k, v in _rate_limits.items() if now - v[1] < 60}
+        _last_cleanup = now
+
+    count, first_req = _rate_limits.get(ip, (0, now))
+    if now - first_req > 60:
+        count = 0
+        first_req = now
+
+    if count >= 30:
+        return False
+
+    _rate_limits[ip] = (count + 1, first_req)
+    return True
 
 
 def tg_alert(text):
@@ -113,6 +136,12 @@ class Handler(BaseHTTPRequestHandler):
         log(f"{self.address_string()} {self.command} {self.path} ->", fmt % args)
 
     # --- helpers ---
+    def client_ip(self):
+        xff = self.headers.get("X-Forwarded-For")
+        if xff:
+            return xff.split(",")[-1].strip()
+        return self.client_address[0]
+
     def origin_allowed(self):
         origin = self.headers.get("Origin", "")
         if origin in EXTRA_ORIGINS:
@@ -185,6 +214,10 @@ class Handler(BaseHTTPRequestHandler):
 
     # --- api ---
     def handle_load(self, query):
+        if not check_rate_limit(self.client_ip()):
+            self.send_json(429, {"error": "too_many_requests"})
+            return
+
         player_id = query.get("player_id", "")
         if not valid_player(player_id):
             self.send_json(400, {"error": "bad_player_id"})
@@ -210,6 +243,10 @@ class Handler(BaseHTTPRequestHandler):
         self.send_json(200, {"progress": progress})
 
     def handle_save(self):
+        if not check_rate_limit(self.client_ip()):
+            self.send_json(429, {"error": "too_many_requests"})
+            return
+
         data = self.read_json()
         if not data:
             self.send_json(400, {"error": "bad_json"})
