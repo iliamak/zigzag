@@ -1,0 +1,4 @@
+## 2023-10-27 - IDOR/DoS via unauthenticated API and proper IP parsing
+**Vulnerability:** The `/api/load` and `/api/save` endpoints accept requests without authentication, creating an Insecure Direct Object Reference (IDOR) and potential Denial of Service (DoS) vulnerability.
+**Learning:** Because the application runs behind proxies (Bothost/Vercel), relying solely on `self.client_address[0]` is insufficient and could lead to IP spoofing. We must parse the `X-Forwarded-For` header and extract the right-most IP to obtain the true client IP for rate limiting.
+**Prevention:** Implemented an in-memory rate limiter (30 requests per 60 seconds) mapped to the true client IP (parsed from `X-Forwarded-For`). To prevent memory exhaustion (DoS), a periodic cleanup mechanism was added to prune stale entries from the rate limit dictionary.
