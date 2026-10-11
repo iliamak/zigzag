@@ -32,6 +32,8 @@ EXTRA_ORIGINS = {o.strip() for o in os.environ.get("ALLOWED_ORIGINS", "").split(
 PLAYER_RE = re.compile(r"^[\w-]{6,64}$")
 MAX_BODY = 256 * 1024
 _last_tg_alert = 0.0
+_rate_limits = {}
+_last_cleanup = 0.0
 
 MIME = {
     ".html": "text/html; charset=utf-8",
@@ -106,6 +108,23 @@ def valid_progress(progress):
     )
 
 
+def check_rate_limit(ip, limit_seconds=1.0):
+    global _last_cleanup
+    now = time.time()
+
+    if now - _last_cleanup > 300:
+        stale = [k for k, v in _rate_limits.items() if now - v > 60]
+        for k in stale:
+            del _rate_limits[k]
+        _last_cleanup = now
+
+    last_req = _rate_limits.get(ip, 0)
+    if now - last_req < limit_seconds:
+        return False
+    _rate_limits[ip] = now
+    return True
+
+
 class Handler(BaseHTTPRequestHandler):
     server_version = "zigzag/1.0"
 
@@ -113,6 +132,12 @@ class Handler(BaseHTTPRequestHandler):
         log(f"{self.address_string()} {self.command} {self.path} ->", fmt % args)
 
     # --- helpers ---
+    def get_client_ip(self):
+        xff = self.headers.get("X-Forwarded-For")
+        if xff:
+            return xff.split(",")[-1].strip()
+        return self.client_address[0]
+
     def origin_allowed(self):
         origin = self.headers.get("Origin", "")
         if origin in EXTRA_ORIGINS:
@@ -185,6 +210,9 @@ class Handler(BaseHTTPRequestHandler):
 
     # --- api ---
     def handle_load(self, query):
+        if not check_rate_limit(self.get_client_ip()):
+            self.send_json(429, {"error": "too_many_requests"})
+            return
         player_id = query.get("player_id", "")
         if not valid_player(player_id):
             self.send_json(400, {"error": "bad_player_id"})
@@ -210,6 +238,9 @@ class Handler(BaseHTTPRequestHandler):
         self.send_json(200, {"progress": progress})
 
     def handle_save(self):
+        if not check_rate_limit(self.get_client_ip()):
+            self.send_json(429, {"error": "too_many_requests"})
+            return
         data = self.read_json()
         if not data:
             self.send_json(400, {"error": "bad_json"})
