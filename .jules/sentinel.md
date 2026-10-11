@@ -1,0 +1,4 @@
+## 2026-10-11 - IP Spoofing and Memory Exhaustion Prevention in Rate Limiting
+**Vulnerability:** A lack of rate limiting exposed the API to DoS and brute-force attacks. However, simply using the request IP or left-most `X-Forwarded-For` (XFF) header allows attackers to spoof their IP address when behind proxies like Vercel or Bothost, bypassing limits. Furthermore, unbounded in-memory rate limit dictionaries (without Redis) create a memory exhaustion vulnerability (DoS).
+**Learning:** For true client IP extraction behind proxies, using the right-most IP in the XFF header is critical to prevent spoofing. Memory-safe tracking must include periodic cleanup of stale entries.
+**Prevention:** Implement `get_client_ip` retrieving the right-most XFF entry. When storing state in Python dictionaries (`_rate_limits`), enforce periodic cleanup (`_last_cleanup` > 300s) to prune old records (older than 60s) dynamically.
