@@ -1,0 +1,4 @@
+## 2024-10-12 - IP Spoofing & DoS in Rate Limiting
+**Vulnerability:** Implementing rate limiters via headers like `X-Forwarded-For` without properly parsing the true client IP can lead to IP spoofing. Additionally, unbounded in-memory dictionaries for tracking IPs over time without periodic cleanup can cause memory exhaustion (DoS).
+**Learning:** For platforms behind proxies (like Vercel), users can inject fake IPs via `X-Forwarded-For`. The true client IP is always the right-most IP in the header list appended by the last trusted proxy.
+**Prevention:** Always use the right-most entry in `X-Forwarded-For` for rate limiting logic. Furthermore, when using Python dicts for tracking rate limits, ensure random or periodic background cleanup processes exist to remove stale data points.
