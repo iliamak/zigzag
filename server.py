@@ -33,6 +33,50 @@ PLAYER_RE = re.compile(r"^[\w-]{6,64}$")
 MAX_BODY = 256 * 1024
 _last_tg_alert = 0.0
 
+import threading
+
+RATE_LIMITS = {}
+RATE_LIMIT_LOCK = threading.Lock()
+
+def check_rate_limit(handler, limit=30, period=60):
+    # Determine IP: Vercel/Bothost use X-Forwarded-For.
+    # To prevent IP spoofing, we use the right-most IP (closest to our proxy).
+    xff = handler.headers.get("X-Forwarded-For")
+    if xff:
+        ip = xff.split(",")[-1].strip()
+    else:
+        ip = handler.client_address[0]
+
+    now = time.time()
+    with RATE_LIMIT_LOCK:
+        # Check current IP limits
+        times = RATE_LIMITS.get(ip, [])
+        times = [t for t in times if now - t < period]
+
+        # Periodic cleanup to prevent unbounded dict growth (Memory DoS mitigation)
+        # We clean up periodically based on timestamp to avoid random logic and O(N) blocks on every request.
+        # Actually, Python's time.time() cleanup here is simpler: just clean up if dictionary gets too large
+        # to guarantee O(1) mostly, or just clean up during idle times.
+        if len(RATE_LIMITS) > 10000:
+            # Emergency cleanup if dictionary gets too large
+            keys_to_delete = []
+            for k, v in RATE_LIMITS.items():
+                valid_times = [t for t in v if now - t < period]
+                if not valid_times:
+                    keys_to_delete.append(k)
+                else:
+                    RATE_LIMITS[k] = valid_times
+            for k in keys_to_delete:
+                del RATE_LIMITS[k]
+
+        if len(times) >= limit:
+            RATE_LIMITS[ip] = times
+            return False
+
+        times.append(now)
+        RATE_LIMITS[ip] = times
+        return True
+
 MIME = {
     ".html": "text/html; charset=utf-8",
     ".json": "application/json; charset=utf-8",
@@ -185,6 +229,9 @@ class Handler(BaseHTTPRequestHandler):
 
     # --- api ---
     def handle_load(self, query):
+        if not check_rate_limit(self, limit=30, period=60):
+            self.send_json(429, {"error": "too_many_requests"})
+            return
         player_id = query.get("player_id", "")
         if not valid_player(player_id):
             self.send_json(400, {"error": "bad_player_id"})
@@ -210,6 +257,9 @@ class Handler(BaseHTTPRequestHandler):
         self.send_json(200, {"progress": progress})
 
     def handle_save(self):
+        if not check_rate_limit(self, limit=30, period=60):
+            self.send_json(429, {"error": "too_many_requests"})
+            return
         data = self.read_json()
         if not data:
             self.send_json(400, {"error": "bad_json"})
