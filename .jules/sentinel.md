@@ -1,0 +1,4 @@
+## 2025-02-14 - IDOR in Save/Load APIs mitigated by Rate Limiting
+**Vulnerability:** IDOR (Insecure Direct Object Reference) exists in `/api/save` and `/api/load?player_id=` endpoints. Any user can theoretically read or overwrite another user's progress by knowing or guessing their `player_id`.
+**Learning:** The architectural decision to not use proper authentication tokens (to maintain backward compatibility with old saves as per project documentation) makes full remediation of IDOR impossible.
+**Prevention:** In systems where authentication cannot be added due to backward compatibility constraints, strict Rate Limiting based on IP (using `X-Forwarded-For` for proxies) is a necessary mitigating control to prevent automated enumeration and mass overwriting attacks. Memory cleanup mechanisms (like periodic garbage collection of rate limit states) must be implemented to prevent DoS via memory exhaustion when building custom rate limiters.
