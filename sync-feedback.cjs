@@ -292,13 +292,14 @@ async function main() {
   }
   // pull: маркдаун
   const mdMap = new Map(mdEntries.map((e) => [e.id, e]));
+  const pagesById = new Map(pages.map((p) => [p.id, p]));
   for (const op of ops) {
     if (op.pullData || pullUpdates.has(op.id)) {
       const d = pullUpdates.get(op.id) || op.pullData;
       if (mdMap.has(op.id)) Object.assign(mdMap.get(op.id), { title: d.title, status: d.status, body: d.body });
       else mdEntries.push({ id: op.id, title: d.title, status: d.status, body: d.body });
       if (d.rename && d.pageId) {
-        const cur = byId.get(op.id) || pages.find((p) => p.id === d.pageId);
+        const cur = byId.get(op.id) || pagesById.get(d.pageId);
         if (cur) setTitle(cur.id, `[${op.id}] ${d.title}`);
       }
     }
