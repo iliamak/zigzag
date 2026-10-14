@@ -1332,13 +1332,13 @@
 
       function showFriends() {
         const entries = todayLeaders();
-        const friendCount = entries.filter((entry) => !entry.self).length;
+        const friendCount = entries.reduce((count, entry) => count + (!entry.self ? 1 : 0), 0);
         const me = entries.find((entry) => entry.self);
-        const rank = me ? 1 + entries.filter((entry) => entry.seconds < me.seconds || (entry.seconds === me.seconds && entry.hints < me.hints)).length : 0;
+        const rank = me ? 1 + entries.reduce((count, entry) => count + (entry.seconds < me.seconds || (entry.seconds === me.seconds && entry.hints < me.hints) ? 1 : 0), 0) : 0;
         let leaderHTML = '';
         if (entries.length) {
           leaderHTML = `<div class="leader-header" aria-hidden="true"><span>#</span><span>ИГРОК</span><span>ВРЕМЯ</span><span>ПОДСК.</span></div><ol aria-label="Рейтинг друзей за сегодня" style="list-style:none;padding:0;margin:0">${entries.map((entry) => {
-            const place = 1 + entries.filter((other) => other.seconds < entry.seconds || (other.seconds === entry.seconds && other.hints < entry.hints)).length;
+            const place = 1 + entries.reduce((count, other) => count + (other.seconds < entry.seconds || (other.seconds === entry.seconds && other.hints < entry.hints) ? 1 : 0), 0);
             return `<li class="leader-row${entry.self ? ' self' : ''}"><span class="leader-place">${place}</span><span class="leader-name"><span class="leader-avatar" aria-hidden="true">${escapeHTML(entry.name.slice(0, 1).toUpperCase())}</span><span class="leader-name-text">${escapeHTML(entry.name)}${entry.self && state.profile.name ? ' (вы)' : ''}</span></span><span class="leader-time">${formatTime(entry.seconds)}</span><span class="leader-hints" aria-label="Подсказок: ${entry.hints}">${entry.hints}</span></li>`;
           }).join('')}</ol>`;
         } else leaderHTML = `<div class="friend-empty">${icon('users')}<strong>Хорошая компания начинается с вас</strong><p>Пригласите друзей, пройдите задачу<br>и обменяйтесь результатами.</p></div>`;
