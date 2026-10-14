@@ -16,6 +16,7 @@ import json
 import os
 import re
 import time
+import threading
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -31,6 +32,12 @@ EXTRA_ORIGINS = {o.strip() for o in os.environ.get("ALLOWED_ORIGINS", "").split(
 
 PLAYER_RE = re.compile(r"^[\w-]{6,64}$")
 MAX_BODY = 256 * 1024
+
+# Rate limiting state
+_rate_limits = {}  # {ip: {"count": int, "window_start": float}}
+_rate_limits_lock = threading.Lock()
+_last_cleanup = time.time()
+
 _last_tg_alert = 0.0
 
 MIME = {
@@ -113,6 +120,41 @@ class Handler(BaseHTTPRequestHandler):
         log(f"{self.address_string()} {self.command} {self.path} ->", fmt % args)
 
     # --- helpers ---
+    def get_client_ip(self):
+        """Extract true client IP from X-Forwarded-For if present."""
+        xff = self.headers.get("X-Forwarded-For")
+        if xff:
+            return xff.split(",")[-1].strip()
+        return self.client_address[0]
+
+    def check_rate_limit(self):
+        """
+        In-memory rate limiter: 60 req / min.
+        Returns True if allowed, False if exceeded.
+        """
+        global _last_cleanup
+        ip = self.get_client_ip()
+        now = time.time()
+
+        with _rate_limits_lock:
+            # Periodic cleanup every 5 minutes to prevent memory exhaustion
+            if now - _last_cleanup > 300:
+                stale = [k for k, v in _rate_limits.items() if now - v["window_start"] > 60]
+                for k in stale:
+                    del _rate_limits[k]
+                _last_cleanup = now
+
+            record = _rate_limits.get(ip)
+            if not record or now - record["window_start"] > 60:
+                _rate_limits[ip] = {"count": 1, "window_start": now}
+                return True
+
+            if record["count"] < 60:
+                record["count"] += 1
+                return True
+
+            return False
+
     def origin_allowed(self):
         origin = self.headers.get("Origin", "")
         if origin in EXTRA_ORIGINS:
@@ -165,6 +207,10 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         parsed = urllib.parse.urlparse(self.path)
+        if parsed.path.startswith("/api/"):
+            if not self.check_rate_limit():
+                self.send_json(429, {"error": "too_many_requests"})
+                return
         if parsed.path == "/api/health":
             self.send_json(200, {"ok": True, "time": int(time.time())})
             return
@@ -178,6 +224,10 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         parsed = urllib.parse.urlparse(self.path)
+        if parsed.path.startswith("/api/"):
+            if not self.check_rate_limit():
+                self.send_json(429, {"error": "too_many_requests"})
+                return
         if parsed.path == "/api/save":
             self.handle_save()
             return
