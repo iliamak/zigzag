@@ -1461,7 +1461,13 @@
         const total = data.cellCount || CELL_COUNT;
         const span = data.size * data.size; // массивы — по id клеток (дырки тоже)
         const inField = (cell) => !data.mask || data.mask.has(cell);
-        const end = [...data.numbers.entries()].find(([, num]) => num === data.maxNum)?.[0];
+        let end;
+        for (const [key, num] of data.numbers.entries()) {
+          if (num === data.maxNum) {
+            end = key;
+            break;
+          }
+        }
         if (end === undefined || !prefix.length) { zzPush('solver', 'empty', zzNow() - _t0); return null; }
         const visited = new Uint8Array(span);
         prefix.forEach((cell) => { visited[cell] = 1; });
