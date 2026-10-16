@@ -32,6 +32,8 @@ EXTRA_ORIGINS = {o.strip() for o in os.environ.get("ALLOWED_ORIGINS", "").split(
 PLAYER_RE = re.compile(r"^[\w-]{6,64}$")
 MAX_BODY = 256 * 1024
 _last_tg_alert = 0.0
+_rate_limits = {}
+_last_cleanup = 0.0
 
 MIME = {
     ".html": "text/html; charset=utf-8",
@@ -113,6 +115,35 @@ class Handler(BaseHTTPRequestHandler):
         log(f"{self.address_string()} {self.command} {self.path} ->", fmt % args)
 
     # --- helpers ---
+    def get_client_ip(self):
+        xff = self.headers.get("X-Forwarded-For")
+        if xff:
+            return xff.split(",")[-1].strip()
+        return self.client_address[0] if self.client_address else "127.0.0.1"
+
+    def is_rate_limited(self, limit=100, window=60):
+        global _last_cleanup, _rate_limits
+        now = time.time()
+
+        if now - _last_cleanup > window:
+            keys_to_delete = [k for k, v in _rate_limits.items() if v[0] < now - window]
+            for k in keys_to_delete:
+                del _rate_limits[k]
+            _last_cleanup = now
+
+        ip = self.get_client_ip()
+        record = _rate_limits.get(ip)
+
+        if record is None or record[0] < now - window:
+            _rate_limits[ip] = [now, 1]
+            return False
+
+        record[1] += 1
+        if record[1] > limit:
+            return True
+
+        return False
+
     def origin_allowed(self):
         origin = self.headers.get("Origin", "")
         if origin in EXTRA_ORIGINS:
@@ -169,6 +200,9 @@ class Handler(BaseHTTPRequestHandler):
             self.send_json(200, {"ok": True, "time": int(time.time())})
             return
         if parsed.path == "/api/load":
+            if self.is_rate_limited():
+                self.send_json(429, {"error": "too_many_requests"})
+                return
             self.handle_load(parse_qs_first(parsed.query))
             return
         if parsed.path == "/api/save" or parsed.path.startswith("/api/"):
@@ -179,6 +213,9 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         parsed = urllib.parse.urlparse(self.path)
         if parsed.path == "/api/save":
+            if self.is_rate_limited():
+                self.send_json(429, {"error": "too_many_requests"})
+                return
             self.handle_save()
             return
         self.send_json(404, {"error": "not_found"})
