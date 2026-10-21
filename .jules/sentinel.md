@@ -8,3 +8,14 @@ Because the application cannot use external dependencies like Redis and operates
 
 **Prevention:**
 Always validate true client IP behind a proxy. When creating in-memory state tracking, implement a sliding window and scheduled/periodic cleanup logic (garbage collection) to prevent unbounded memory growth.
+
+## 2026-10-21 - Unhandled Exception in JSON Deserialization
+
+**Vulnerability:**
+The `/api/save` endpoint assumed that the successfully parsed JSON from a POST request was a dictionary before attempting to access its properties via `.get()`. However, if an attacker sent a valid JSON array (e.g., `[1, 2, 3]`), the `json.loads()` method would successfully parse it, but subsequent `.get()` calls would trigger an `AttributeError` causing an unhandled exception and a 500/Connection Reset, opening a potential Denial of Service (DoS) attack vector.
+
+**Learning:**
+Successfully parsing JSON does not guarantee the structure or type of the object. Python's `json.loads()` can return lists, dictionaries, strings, numbers, booleans, or null depending on the input. We learned that accessing methods specific to a certain data type (like `.get()` on a dict) without prior type validation leads to unhandled exceptions.
+
+**Prevention:**
+Always validate the expected data type of the parsed JSON object immediately after deserialization and before accessing its contents. For example, use `if not isinstance(data, dict):` instead of `if not data:` to enforce the expected structure and prevent type-related exceptions.
