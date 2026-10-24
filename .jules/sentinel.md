@@ -8,3 +8,8 @@ Because the application cannot use external dependencies like Redis and operates
 
 **Prevention:**
 Always validate true client IP behind a proxy. When creating in-memory state tracking, implement a sliding window and scheduled/periodic cleanup logic (garbage collection) to prevent unbounded memory growth.
+
+## 2026-10-24 - Unhandled JSON Object Types (DoS Risk)
+**Vulnerability:** The `/api/save` endpoint accepted JSON payloads without validating the top-level type. If a JSON array was sent, `json.loads` would parse it as a list, leading to an `AttributeError` when `.get()` was called, potentially crashing the request handler thread or causing DoS.
+**Learning:** `json.loads` can return lists, strings, or numbers if valid JSON, not just dictionaries. We cannot assume the parsed JSON is a dictionary before calling dictionary-specific methods.
+**Prevention:** Always validate the type of the parsed JSON (e.g., `isinstance(data, dict)`) before attempting to access its properties.
