@@ -174,7 +174,8 @@ class Handler(BaseHTTPRequestHandler):
         if length <= 0 or length > MAX_BODY:
             return None
         try:
-            return json.loads(self.rfile.read(length).decode())
+            data = json.loads(self.rfile.read(length).decode())
+            return data if isinstance(data, dict) else None
         except (ValueError, UnicodeDecodeError):
             return None
 
