@@ -251,6 +251,10 @@ class Handler(BaseHTTPRequestHandler):
         if not data:
             self.send_json(400, {"error": "bad_json"})
             return
+        if not isinstance(data, dict):
+            # 🛡️ Sentinel: Prevent unhandled AttributeError if JSON is an array/scalar (DoS risk)
+            self.send_json(400, {"error": "bad_json_type"})
+            return
         player_id, progress = data.get("player_id"), data.get("progress")
         if not valid_player(player_id):
             self.send_json(400, {"error": "bad_player_id"})
