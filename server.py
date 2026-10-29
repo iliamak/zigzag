@@ -248,7 +248,8 @@ class Handler(BaseHTTPRequestHandler):
 
     def handle_save(self):
         data = self.read_json()
-        if not data:
+        # Security: validate JSON type before accessing properties to prevent DoS via unhandled exceptions
+        if not data or not isinstance(data, dict):
             self.send_json(400, {"error": "bad_json"})
             return
         player_id, progress = data.get("player_id"), data.get("progress")

@@ -8,3 +8,7 @@ Because the application cannot use external dependencies like Redis and operates
 
 **Prevention:**
 Always validate true client IP behind a proxy. When creating in-memory state tracking, implement a sliding window and scheduled/periodic cleanup logic (garbage collection) to prevent unbounded memory growth.
+## 2024-10-29 - [Unhandled Exception DoS via JSON Array]
+**Vulnerability:** The application blindly called `data.get()` on parsed JSON input in `/api/save` without validating that the parsed output was actually a dictionary, resulting in an `AttributeError` crashing the request thread when a JSON array was submitted.
+**Learning:** `json.loads()` can return a dictionary, list, string, integer, float, or boolean. If the backend expects a dictionary (JSON object) and receives a list (JSON array), accessing it with `.get()` or dictionary keys causes a crash, creating a DoS vulnerability.
+**Prevention:** Always validate the type of the parsed JSON object (e.g., `isinstance(data, dict)`) immediately after `json.loads()` and before attempting to access its properties.
